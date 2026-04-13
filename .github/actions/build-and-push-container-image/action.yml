@@ -4,17 +4,35 @@ author: "DevOps Team"
 
 inputs:
   github_token:
-    description: "GitHub Token with permissions to push to GHCR"
+    description: "GitHub token for authentication"
     required: true
-  project_language:
-    description: "The main programming language of the project, used for Trivy scan reporting"
+  trivy_severity:
+    description: "Trivy severity threshold"
     required: false
-    default: "java"
+    default: "CRITICAL,HIGH"
+  trivy_ignore_unfixed:
+    description: "Ignore unfixed vulnerabilities"
+    required: false
+    default: "true"
+  trivy_exit_code:
+    description: "Exit code when vulnerabilities found"
+    required: false
+    default: "1"
+  projectlanguage:
+    description: "Lenguaje principal del proyecto"
+    required: false
+    default: "N/A"
   security_allow_push_to_ghcr:
     description: "Flag to allow pushing the container image to GHCR, used for security control"
     required: false
     default: "false"
-
+  is_single_branch_deployment:
+    description: "Flag to indicate if the deployment is for a single branch, used for naming conventions"
+    required: false
+    default: "false"
+    description: "The environment to deploy to, used for naming conventions and conditional logic"
+    required: false
+    default: "dev"
 runs:
   using: "composite"
   steps:
@@ -61,3 +79,38 @@ runs:
         SCRIPT="${SCRIPTS_PATH}/shell/container/build-and-push.sh"
         chmod +x "${SCRIPT}"
         "${SCRIPT}" build
+
+    # ── Scan (continue-on-error: exporta resultado antes de fallar) ──
+    - name: "Trivy Security Scan"
+      id: scan
+      continue-on-error: true
+      shell: bash
+      env:
+        INPUT_IMAGE_NAME: ${{ steps.build.outputs.container_image_name_ghcr }}
+        INPUT_TRIVY_SEVERITY: ${{ inputs.trivy_severity }}
+        INPUT_TRIVY_IGNORE_UNFIXED: ${{ inputs.trivy_ignore_unfixed }}
+        INPUT_TRIVY_EXIT_CODE: ${{ inputs.trivy_exit_code }}
+        INPUT_SECURITY_ALLOW_PUSH_TO_GHCR: ${{ inputs.security_allow_push_to_ghcr }}
+        GITHUB_WORKSPACE: ${{ github.workspace }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+        SCRIPT="${SCRIPTS_PATH}/shell/container/build-and-push.sh"
+        "${SCRIPT}" scan
+
+    # ── Push (solo si scan pasó o fue skipped) ────────────────
+    - name: "Push Container Image"
+      id: push
+      if: >-
+        steps.scan.outputs.trivy_scan_result == 'passed' || steps.scan.outputs.trivy_scan_result == 'skipped' ||
+        (inputs.security_allow_push_to_ghcr == 'true')
+      shell: bash
+      env:
+        INPUT_IMAGE_NAME: ${{ steps.build.outputs.container_image_name_ghcr }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_SHA: ${{ github.sha }}
+        INPUT_IS_SINGLE_BRANCH_DEPLOYMENT: ${{ inputs.is_single_branch_deployment }}
+      run: |
+        set -euo pipefail
+        SCRIPT="${SCRIPTS_PATH}/shell/container/build-and-push.sh"
+        "${SCRIPT}" push
