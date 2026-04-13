@@ -52,4 +52,4 @@ jobs:
         id: ctx
         uses: ./.ci-toolkit/.github/actions/resolve-ci-context
         with:
-          inputs_target_action: ${{ inputs.target_action }}
+          input_target_action: ${{ inputs.target_action }}
