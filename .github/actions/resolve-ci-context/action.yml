@@ -8,11 +8,45 @@ inputs:
       High-level pipeline intent (e.g. container, flutter).
       Optional; defaults are resolved internally.
     required: false
-
+outputs:
+  should_run:
+    description: "Flag indicating if the pipeline should proceed based on context."
+    value: ${{ steps.resolve.outputs.should_run }}
+  is_pr:
+    description: "Flag indicating if the event is a pull request."
+    value: ${{ steps.resolve.outputs.is_pr }}
+  is_push:
+    description: "Flag indicating if the event is a push."
+    value: ${{ steps.resolve.outputs.is_push }}
+  is_dispatch:
+    description: "Flag indicating if the event is a workflow dispatch."
+    value: ${{ steps.resolve.outputs.is_dispatch }}
+  is_hotfix:
+    description: "Flag indicating if the context is a hotfix release."
+    value: ${{ steps.resolve.outputs.is_hotfix }}
+  is_container:
+    description: "Flag indicating if the target action involves container operations."
+    value: ${{ steps.resolve.outputs.is_container }}
+  release_version:
+    description: "Inferred version string based on context (e.g. branch name, tag)."
+    value: ${{ steps.resolve.outputs.release_version }}
+  release_version_number:
+    description: "Inferred version number extracted from the version string."
+    value: ${{ steps.resolve.outputs.release_version_number }}
+  build_number:
+    description: "Unique build number for flutter in pubspec.yaml"
+    value: ${{ steps.resolve.outputs.build_number }}
+  is_flutter:
+    description: "Flag indicating if the target action involves Flutter operations."
+    value: ${{ steps.resolve.outputs.is_flutter }}
+  active_branch:
+    description: "The active branch name relevant to the event (e.g. PR source branch, push branch)."
+    value: ${{ steps.resolve.outputs.active_branch }}
 runs:
   using: "composite"
   steps:
     - name: resolve-ci-context
+      id: resolve
       shell: bash
       env:
         INPUT_TARGET_ACTION: ${{ inputs.target_action }}
