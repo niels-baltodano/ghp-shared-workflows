@@ -2,6 +2,13 @@ name: resolve-ci-context
 description: "Valida el contexto del repositorio respecto a sus acciones"
 author: "DevOps Team"
 
+inputs:
+  target_action:
+    description: >
+      High-level pipeline intent (e.g. container, flutter).
+      Optional; defaults are resolved internally.
+    required: false
+
 runs:
   using: "composite"
   steps:
