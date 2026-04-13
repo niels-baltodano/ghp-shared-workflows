@@ -2,6 +2,19 @@ name: container build-and-push process
 description: "Construye la container image"
 author: "DevOps Team"
 
+inputs:
+  github_token:
+    description: "GitHub Token with permissions to push to GHCR"
+    required: true
+  project_language:
+    description: "The main programming language of the project, used for Trivy scan reporting"
+    required: false
+    default: "java"
+  security_allow_push_to_ghcr:
+    description: "Flag to allow pushing the container image to GHCR, used for security control"
+    required: false
+    default: "false"
+
 runs:
   using: "composite"
   steps:
@@ -10,7 +23,6 @@ runs:
       run: |
         SCRIPTS_PATH=".ci-toolkit/.github/scripts"
         echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
-
 
     # ── Dependencies ──────────────────────────────────────────
 
