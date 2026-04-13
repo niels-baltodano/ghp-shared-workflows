@@ -1,0 +1,68 @@
+---
+name: Build and Push Container Image
+
+on:
+  workflow_call:
+    inputs:
+      release_version:
+        description: "The version of the application to deploy"
+        type: string
+        required: true
+      project_language:
+        description: "The main programming language of the project, used for Trivy scan reporting"
+        type: string
+        required: false
+      security_allow_push_to_ghcr:
+        description: "Flag to allow pushing the container image to GHCR, used for security control"
+        type: string
+        required: false
+        default: "false"
+      is_single_branch_deployment:
+        description: "Flag to indicate if the deployment is for a single branch, used for naming conventions"
+        type: string
+        required: false
+        default: "false"
+      environment:
+        description: "The environment to deploy to, used for naming conventions and conditional logic"
+        type: string
+        required: false
+        default: "dev"
+    outputs:
+      container_image_name_ghcr:
+        description: "The name of the container image in GHCR"
+        value: ${{ jobs.build-and-push.outputs.container_image_name_ghcr }}
+      container_image_digest_ghcr:
+        description: "The digest of the container image in GHCR"
+        value: ${{ jobs.build-and-push.outputs.container_image_digest_ghcr }}
+      client_repo_sha:
+        description: "The SHA of the commit in the client repository that triggered the workflow"
+        value: ${{ jobs.build-and-push.outputs.client_repo_sha }}
+    secrets: inherit
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      container_image_name_ghcr: ${{ steps.build.outputs.container_image_name_ghcr }}
+      container_image_digest_ghcr: ${{ steps.build.outputs.container_image_digest_ghcr }}
+      client_repo_sha: ${{ steps.build.outputs.client_repo_sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Checkout monorepo de workflows
+        uses: actions/checkout@v5
+        with:
+          repository: niels-baltodano/ghp-shared-workflows
+          ref: main
+          path: .ci-toolkit
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Container Image
+        id: build
+        uses: ./.ci-toolkit/.github/actions/build-and-push-container-image
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          project_language: ${{ inputs.project_language }}
+          security_allow_push_to_ghcr: ${{ inputs.security_allow_push_to_ghcr }}
