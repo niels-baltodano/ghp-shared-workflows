@@ -37,7 +37,6 @@ on:
       client_repo_sha:
         description: "The SHA of the commit in the client repository that triggered the workflow"
         value: ${{ jobs.build-and-push.outputs.client_repo_sha }}
-    secrets: inherit
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
