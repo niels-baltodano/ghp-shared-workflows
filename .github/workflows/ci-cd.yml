@@ -1,0 +1,54 @@
+---
+name: CI/CD Dispatcher
+
+on:
+workflow_call:
+  outputs:
+    container_image_name_ghcr:
+      description: "the name of the container in GHCR"
+      value: ${{ jobs.container-build-and-push.outputs.container_image_name_ghcr }}
+    container_image_digest_ghcr:
+      description: "The digest of the container image in GHCR"
+      value: ${{ jobs.container-build-and-push.outputs.container_image_digest_ghcr }}
+    client_repo_sha:
+      description: "The SHA of the commit in the cliente repository(called the shared library)"
+      value: ${{ jobs.resolve-ci-context.outputs.client_repo_sha }}
+  inputs:
+    target_action:
+      required: true
+      type: string
+jobs:
+resolve-ci-context:
+  name: "ValidateContext(Event: ${{ github.event_name }})"
+  runs-on: ubuntu-slim
+  outputs:
+    should_run: ${{ steps.ctx.outputs.should_run }}
+    is_pr: ${{ steps.ctx.outputs.is_pr }}
+    is_push: ${{ steps.ctx.outputs.is_push }}
+    is_dispatch: ${{ steps.ctx.outputs.is_dispatch }}
+    is_hotfix_branch: ${{ steps.ctx.outputs.is_hotfix_branch }}
+    release_version: ${{ steps.ctx.outputs.release_version }}
+    release_version_semver: ${{ steps.ctx.outputs.release_version_semver }}
+    active_branch: ${{ steps.ctx.outputs.active_branch }}
+  steps:
+    - name: "Checkout code"
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+        persist-credentials: true
+
+    - name: Checkout monorepo(workflows and actions)
+      uses: actions/checkout@v5
+      with:
+        repository: "niels-baltodano/ghp-shared-workflows"
+        ref: main
+        path: .ci-toolkit
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+        persist-credentials: true
+
+    - name: Resolve CI/CD context
+      id: ctx
+      uses: ./.ci-toolkit/actions/resolve-ci-context
+      with:
+        inputs_target_action: ${{ inputs.target_action }}
