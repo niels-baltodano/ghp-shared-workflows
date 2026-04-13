@@ -1,5 +1,5 @@
 name: container build-and-push process
-description: "Construye la container image"
+description: "Builds, scans, and pushes a container image to GHCR"
 author: "DevOps Team"
 
 inputs:
@@ -18,8 +18,8 @@ inputs:
     description: "Exit code when vulnerabilities found"
     required: false
     default: "1"
-  projectlanguage:
-    description: "Lenguaje principal del proyecto"
+  project_language:
+    description: "Main programming language of the project, used for Trivy scan reporting"
     required: false
     default: "N/A"
   security_allow_push_to_ghcr:
@@ -30,14 +30,29 @@ inputs:
     description: "Flag to indicate if the deployment is for a single branch, used for naming conventions"
     required: false
     default: "false"
+
+outputs:
+  container_image_name_ghcr:
+    description: "Name of the container image in GHCR"
+    value: ${{ steps.build.outputs.container_image_name_ghcr }}
+  container_image_digest_ghcr:
+    description: "Digest of the container image in GHCR"
+    value: ${{ steps.push.outputs.container_image_digest_ghcr }}
+  client_repo_sha:
+    description: "Commit SHA that triggered the build"
+    value: ${{ steps.build.outputs.client_repo_sha }}
+
 runs:
   using: "composite"
   steps:
-    - name: set SCRIPTS_PATH
+    - name: Set shared paths
       shell: bash
       run: |
         SCRIPTS_PATH=".ci-toolkit/.github/scripts"
+        SCRIPT="${SCRIPTS_PATH}/shell/container/build-and-push.sh"
+        chmod +x "${SCRIPT}"
         echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
+        echo "BUILD_PUSH_SCRIPT=${SCRIPT}" >> $GITHUB_ENV
 
     # ── Dependencies ──────────────────────────────────────────
 
@@ -53,31 +68,28 @@ runs:
 
     - name: "Install Trivy"
       shell: bash
+      env:
+        TRIVY_VERSION: "v0.63.0"
       run: |
         if command -v trivy &>/dev/null; then
           echo "✅ Trivy already installed: $(trivy --version 2>&1 | head -1)"
           exit 0
         fi
-        echo "ℹ️  Installing Trivy..."
+        echo "ℹ️  Installing Trivy ${TRIVY_VERSION}..."
         curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-          | sudo sh -s -- -b /usr/local/bin
+          | sudo sh -s -- -b /usr/local/bin "${TRIVY_VERSION}"
         trivy --version
 
     - name: "Build Container Image"
       id: build
       shell: bash
       env:
-        GITHUB_SHA: ${{ github.sha }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
-        GITHUB_WORKSPACE: ${{ github.workspace }}
         INPUT_IS_SINGLE_BRANCH_DEPLOYMENT: ${{ inputs.is_single_branch_deployment }}
       run: |
         set -euo pipefail
-        SCRIPT="${SCRIPTS_PATH}/shell/container/build-and-push.sh"
-        chmod +x "${SCRIPT}"
-        "${SCRIPT}" build
+        "${BUILD_PUSH_SCRIPT}" build
 
-    # ── Scan (continue-on-error: exporta resultado antes de fallar) ──
+    # ── Scan (continue-on-error: exports result before failing) ──
     - name: "Trivy Security Scan"
       id: scan
       continue-on-error: true
@@ -88,14 +100,11 @@ runs:
         INPUT_TRIVY_IGNORE_UNFIXED: ${{ inputs.trivy_ignore_unfixed }}
         INPUT_TRIVY_EXIT_CODE: ${{ inputs.trivy_exit_code }}
         INPUT_SECURITY_ALLOW_PUSH_TO_GHCR: ${{ inputs.security_allow_push_to_ghcr }}
-        GITHUB_WORKSPACE: ${{ github.workspace }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
       run: |
         set -euo pipefail
-        SCRIPT="${SCRIPTS_PATH}/shell/container/build-and-push.sh"
-        "${SCRIPT}" scan
+        "${BUILD_PUSH_SCRIPT}" scan
 
-    # ── Push (solo si scan pasó o fue skipped) ────────────────
+    # ── Push (only when scan passed or skipped) ───────────────
     - name: "Push Container Image"
       id: push
       if: >-
@@ -104,10 +113,7 @@ runs:
       shell: bash
       env:
         INPUT_IMAGE_NAME: ${{ steps.build.outputs.container_image_name_ghcr }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
-        GITHUB_SHA: ${{ github.sha }}
         INPUT_IS_SINGLE_BRANCH_DEPLOYMENT: ${{ inputs.is_single_branch_deployment }}
       run: |
         set -euo pipefail
-        SCRIPT="${SCRIPTS_PATH}/shell/container/build-and-push.sh"
-        "${SCRIPT}" push
+        "${BUILD_PUSH_SCRIPT}" push

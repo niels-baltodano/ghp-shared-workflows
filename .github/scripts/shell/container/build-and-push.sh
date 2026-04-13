@@ -15,10 +15,11 @@ readonly IS_SINGLE_BRANCH_DEPLOYMENT="${INPUT_IS_SINGLE_BRANCH_DEPLOYMENT:-false
 readonly TRIVY_SEVERITY="${INPUT_TRIVY_SEVERITY:-CRITICAL,HIGH}"
 readonly TRIVY_EXIT_CODE="${INPUT_TRIVY_EXIT_CODE:-1}"
 readonly TRIVY_IGNORE_UNFIXED="${INPUT_TRIVY_IGNORE_UNFIXED:-true}"
-readonly TRIVY_REPORT_PATH="${GITHUB_WORKSPACE}/trivy-report.json"
 
 readonly REF_PREFIX_HEADS="refs/heads/"
-readonly REF_NAME="$(echo "${GITHUB_REF_NAME:-}" | sed "s|^${REF_PREFIX_HEADS}||")"
+REF_NAME="${GITHUB_REF_NAME:-}"
+REF_NAME="${REF_NAME#"${REF_PREFIX_HEADS}"}"
+readonly REF_NAME
 
 # ============================================================
 # Logging
@@ -274,15 +275,20 @@ _docker_build() {
     "${context}"
 }
 
-_write_github_outputs() {
+_write_build_outputs() {
   local image_name="$1"
   local sha="$2"
-  local output_file="$3"
 
   {
     echo "container_image_name_ghcr=${image_name}"
     echo "client_repo_sha=${sha}"
-  } >>"${output_file}"
+  } >>"${GITHUB_OUTPUT}"
+}
+
+_write_push_outputs() {
+  local image_digest="$1"
+
+  echo "container_image_digest_ghcr=${image_digest}" >>"${GITHUB_OUTPUT}"
 }
 
 # ------------------------------------------------------------
@@ -318,10 +324,7 @@ cmd_build() {
 
   log_ok "Image built: ${image_name}"
 
-  _write_github_outputs \
-    "${image_name}" \
-    "${GITHUB_SHA}" \
-    "${GITHUB_OUTPUT}"
+  _write_build_outputs "${image_name}" "${GITHUB_SHA}"
 }
 
 # ============================================================
@@ -352,14 +355,6 @@ cmd_scan() {
 
   log_info "Scanning image (severity=${TRIVY_SEVERITY})..."
 
-  trivy image \
-    --severity "${TRIVY_SEVERITY}" \
-    --ignore-unfixed \
-    --format json \
-    --output "${TRIVY_REPORT_PATH}" \
-    --no-progress \
-    "${image_name}" || true
-
   local trivy_args=(
     image
     --severity "${TRIVY_SEVERITY}"
@@ -369,8 +364,6 @@ cmd_scan() {
   )
 
   [[ "${TRIVY_IGNORE_UNFIXED}" == "true" ]] && trivy_args+=(--ignore-unfixed)
-
-  echo "trivy_report_path=${TRIVY_REPORT_PATH}" >>"${GITHUB_OUTPUT}"
 
   if ! trivy "${trivy_args[@]}" "${image_name}"; then
     log_error "Vulnerabilities found above threshold (${TRIVY_SEVERITY})."
@@ -415,8 +408,7 @@ cmd_push() {
 
   if [[ -z "${digest}" ]]; then
     digest="$(docker buildx imagetools inspect "${image_name}" |
-      grep -m 1 'Digest:' |
-      awk '{print $2}')" || true
+      awk '/^Digest:/{print $2; exit}')" || true
   fi
 
   if [[ -z "${digest}" ]]; then
@@ -427,7 +419,7 @@ cmd_push() {
   local image_digest="${REGISTRY}/$(get_repository_name)@${digest}"
   log_ok "Image pushed. Digest: ${image_digest}"
 
-  echo "container_image_digest_ghcr=${image_digest}" >>"${GITHUB_OUTPUT}"
+  _write_push_outputs "${image_digest}"
 
   log_info "Cleaning up dangling images..."
   docker image prune -f >/dev/null 2>&1 || true
