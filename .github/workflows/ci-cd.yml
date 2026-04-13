@@ -41,7 +41,7 @@ jobs:
       - name: Checkout monorepo(workflows and actions)
         uses: actions/checkout@v5
         with:
-          repository: "niels-baltodano/ghp-shared-workflows"
+          repository: niels-baltodano/ghp-shared-workflows
           ref: main
           path: .ci-toolkit
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -53,3 +53,16 @@ jobs:
         uses: ./.ci-toolkit/.github/actions/resolve-ci-context
         with:
           input_target_action: ${{ inputs.target_action }}
+
+  container-build-and-push:
+    needs: [resolve-ci-context]
+    if: >-
+      needs.resolve-ci-context.outputs.should_run == 'true' &&
+      needs.resolve-ci-context.outputs.is_container == 'true' &&
+      needs.resolve-ci-context.is_dispatch == 'true'
+    uses: ./.github/workflows/container-build-push.yml
+    secrets: inherit
+    with:
+      release_version: ${{ needs.resolve-ci-context.outputs.release_version }}
+      #project_language: ${{ needs.container-pre-build.outputs.project_language }}
+      security_allow_push_to_ghcr: ${{ vars.SECURITY_ALLOW_PUSH_TO_GHCR || 'false' }}
