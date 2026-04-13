@@ -43,9 +43,9 @@ outputs:
     description: "The active branch name relevant to the event (e.g. PR source branch, push branch)."
     value: ${{ steps.resolve.outputs.active_branch }}
 runs:
-  using: "composite"
+  using: composite
   steps:
-    - name: resolve-ci-context
+    - name: Resolve CI/CD Context
       id: resolve
       shell: bash
       env:

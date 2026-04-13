@@ -27,10 +27,11 @@ jobs:
       is_pr: ${{ steps.ctx.outputs.is_pr }}
       is_push: ${{ steps.ctx.outputs.is_push }}
       is_dispatch: ${{ steps.ctx.outputs.is_dispatch }}
-      is_hotfix_branch: ${{ steps.ctx.outputs.is_hotfix_branch }}
+      is_container: ${{ steps.ctx.outputs.is_container }}
+      is_hotfix: ${{ steps.ctx.outputs.is_hotfix }}
       release_version: ${{ steps.ctx.outputs.release_version }}
-      release_version_semver: ${{ steps.ctx.outputs.release_version_semver }}
-      active_branch: ${{ steps.ctx.outputs.active_branch }}
+      release_version_number: ${{ steps.ctx.outputs.release_version_number }}
+      # branch_freshness_check: ${{ steps.merge-validator.outputs.branch_freshness_check }}
     steps:
       - name: "Checkout code"
         uses: actions/checkout@v5
