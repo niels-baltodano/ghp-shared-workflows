@@ -1,0 +1,23 @@
+name: resolve-ci-context
+description: "Valida el contexto del repositorio respecto a sus acciones"
+author: "DevOps Team"
+
+runs:
+  using: "composite"
+  steps:
+    - name: resolve-ci-context
+      shell: bash
+      run: |
+        set -euo pipefail
+        GREEN='\033[0;32m'
+        NC='\033[0m' # No Color
+
+        echo -ne "🚀 ${GREEN}[INFO]: RESOLVIENDO CONTEXTO${NC}\n"
+
+        SCRIPTS_PATH=".ci-toolkit/.github/scripts"
+        export SCRIPTS_PATH
+        echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
+
+        EXECUTE_SCRIPT="${SCRIPTS_PATH}/shell/resolve-ci-context/resolve-ci-context.sh"
+        chmod +x ${EXECUTE_SCRIPT}
+        ${EXECUTE_SCRIPT}
