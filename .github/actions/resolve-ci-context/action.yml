@@ -14,6 +14,8 @@ runs:
   steps:
     - name: resolve-ci-context
       shell: bash
+      env:
+        INPUT_TARGET_ACTION: ${{ inputs.target_action }}
       run: |
         set -euo pipefail
         GREEN='\033[0;32m'

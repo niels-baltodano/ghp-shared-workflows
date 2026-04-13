@@ -52,7 +52,7 @@ jobs:
         id: ctx
         uses: ./.ci-toolkit/.github/actions/resolve-ci-context
         with:
-          input_target_action: ${{ inputs.target_action }}
+          target_action: ${{ inputs.target_action }}
 
   container-build-and-push:
     needs: [resolve-ci-context]
