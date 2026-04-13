@@ -69,7 +69,7 @@ runs:
     - name: "Install Trivy"
       shell: bash
       env:
-        TRIVY_VERSION: "v0.63.0"
+        TRIVY_VERSION: "v0.63.9"
       run: |
         if command -v trivy &>/dev/null; then
           echo "✅ Trivy already installed: $(trivy --version 2>&1 | head -1)"
