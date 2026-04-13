@@ -30,9 +30,6 @@ inputs:
     description: "Flag to indicate if the deployment is for a single branch, used for naming conventions"
     required: false
     default: "false"
-    description: "The environment to deploy to, used for naming conventions and conditional logic"
-    required: false
-    default: "dev"
 runs:
   using: "composite"
   steps:
