@@ -50,6 +50,6 @@ jobs:
 
       - name: Resolve CI/CD context
         id: ctx
-        uses: ./.ci-toolkit/actions/resolve-ci-context
+        uses: ./.ci-toolkit/.github/actions/resolve-ci-context
         with:
           inputs_target_action: ${{ inputs.target_action }}
