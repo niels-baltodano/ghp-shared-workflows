@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# set -euo pipefail
-set -ex
+set -euo pipefail
 
 # ============================================================
 # Constants
