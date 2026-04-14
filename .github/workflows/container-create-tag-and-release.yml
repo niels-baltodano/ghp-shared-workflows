@@ -33,3 +33,4 @@ jobs:
         uses: ./.ci-toolkit/.github/actions/gitops-tag-and-release-creator
         with:
           release_version: ${{ inputs.release_version }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

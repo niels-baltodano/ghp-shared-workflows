@@ -5,6 +5,9 @@ inputs:
   release_version:
     description: "La versión de release a validar (debe seguir el patrón semver, ej: v1.2.3)"
     required: true
+  github_token:
+    description: "Token de GitHub con permisos para crear tags y releases en el repositorio"
+    required: true
   environment:
     description: "El entorno para el cual se está creando la release (ej: staging, production)"
     required: false
@@ -26,6 +29,8 @@ runs:
       env:
         INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
         INPUT_ENVIRONMENT: ${{ inputs.environment }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+        GH_TOKEN: ${{ inputs.github_token }}
       run: |
         set -euo pipefail
         "${TAG_AND_RELEASE_CREATOR_SCRIPT}"
