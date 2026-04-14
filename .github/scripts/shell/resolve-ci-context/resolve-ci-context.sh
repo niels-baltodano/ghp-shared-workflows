@@ -218,6 +218,24 @@ validate_release_branch() {
   return 0
 }
 
+
+# ============================================================
+# Tag Existence Check — params only; no env access
+# ============================================================
+
+tag_exists_remote() {
+  local version="$1"
+  local repo="$2"
+
+  gh api "repos/${repo}/git/ref/tags/${version}" &>/dev/null
+}
+
+branch_is_merged_into_main() {
+  local branch="$1"
+
+  git merge-base --is-ancestor "${branch}" "origin/main" 2>/dev/null
+}
+
 # ============================================================
 # Push Version Resolution
 # ============================================================
@@ -307,6 +325,20 @@ evaluate_policy() {
   if is_dispatch; then
     if ! validate_release_branch "${REF_NAME}" "workflow_dispatch"; then
       log_error "workflow_dispatch desde rama no permitida."
+      exit "${EXIT_ERROR}"
+    fi
+
+    # Guard: tag already released
+    if tag_exists_remote "${RELEASE_VERSION}" "${REPO}"; then
+      log_error "El tag '${RELEASE_VERSION}' ya existe en '${REPO}'."
+      log_error "La versión ya fue liberada. Crea una nueva rama release/ con una versión incrementada."
+      exit "${EXIT_ERROR}"
+    fi
+
+    # Guard: branch already merged to main
+    if branch_is_merged_into_main "${REF_NAME}"; then
+      log_error "La rama '${REF_NAME}' ya fue mergeada a main."
+      log_error "Crea una nueva rama release/ (ej: release/v0.0.2) para un nuevo despliegue."
       exit "${EXIT_ERROR}"
     fi
 
