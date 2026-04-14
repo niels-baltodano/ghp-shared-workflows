@@ -8,6 +8,9 @@ inputs:
       High-level pipeline intent (e.g. container, flutter).
       Optional; defaults are resolved internally.
     required: false
+  github_token:
+    description: "Token de GitHub con permisos para validar el contexto del repositorio"
+    required: true
 outputs:
   should_run:
     description: "Flag indicating if the pipeline should proceed based on context."
@@ -50,6 +53,8 @@ runs:
       shell: bash
       env:
         INPUT_TARGET_ACTION: ${{ inputs.target_action }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+        GH_TOKEN: ${{ inputs.github_token }}
       run: |
         set -euo pipefail
         GREEN='\033[0;32m'

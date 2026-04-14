@@ -54,6 +54,7 @@ jobs:
         uses: ./.ci-toolkit/.github/actions/resolve-ci-context
         with:
           target_action: ${{ inputs.target_action }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Git Merge Validator
         id: merge-validator
