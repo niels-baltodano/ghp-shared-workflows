@@ -9,7 +9,7 @@ on:
         type: string
         required: true
 jobs:
-  check-tag-and-release:
+  create-tag-and-release:
     runs-on: ubuntu-slim
     steps:
       - name: "Checkout code"
