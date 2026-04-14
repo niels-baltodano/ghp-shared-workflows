@@ -1,0 +1,35 @@
+---
+name: Verications for Container PRs
+
+on:
+  workflow_call:
+    inputs:
+      release_version:
+        description: "The version of the application to deploy"
+        type: string
+        required: true
+jobs:
+  check-tag-and-release:
+    runs-on: ubuntu-slim
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Checkout monorepo(workflows and actions)
+        uses: actions/checkout@v5
+        with:
+          repository: niels-baltodano/ghp-shared-workflows
+          ref: main
+          path: .ci-toolkit
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Validate tag pattern and release existence
+        id: validate-release
+        uses: ./.ci-toolkit/.github/actions/gitops-tag-and-release-validator
+        with:
+          release_version: ${{ inputs.release_version }}

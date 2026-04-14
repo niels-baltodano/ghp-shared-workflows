@@ -16,7 +16,7 @@ runs:
       shell: bash
       run: |
         SCRIPTS_PATH=".ci-toolkit/.github/scripts"
-        SCRIPT="${SCRIPTS_PATH}/shell/gitops/merge-validator.sh"
+        SCRIPT="${SCRIPTS_PATH}/shell/gitops/merge-validator/merge-validator.sh"
         chmod +x "${SCRIPT}"
         echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
         echo "MERGE_VALIDATOR_SCRIPT=${SCRIPT}" >> $GITHUB_ENV

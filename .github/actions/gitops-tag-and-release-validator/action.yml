@@ -1,0 +1,26 @@
+---
+name: GitOps Tag and Release Validator
+description: Valida que el tag de release siga el patrón semver y que exista una release con ese tag en GitHub
+inputs:
+  release_version:
+    description: "La versión de release a validar (debe seguir el patrón semver, ej: v1.2.3)"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Set shared paths
+      shell: bash
+      run: |
+        SCRIPTS_PATH=".ci-toolkit/.github/scripts"
+        SCRIPT="${SCRIPTS_PATH}/shell/gitops/tag-release-validator/tag-and-release-validator.sh"
+        chmod +x "${SCRIPT}"
+        echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
+        echo "TAG_AND_RELEASE_VALIDATOR_SCRIPT=${SCRIPT}" >> $GITHUB_ENV
+
+    - name: Validate Tag and Release
+      shell: bash
+      env:
+        RELEASE_VERSION: ${{ inputs.release_version }}
+      run: |
+        set -euo pipefail
+        "${TAG_AND_RELEASE_VALIDATOR_SCRIPT}"

@@ -75,3 +75,14 @@ jobs:
     with:
       release_version: ${{ needs.resolve-ci-context.outputs.release_version }}
       security_allow_push_to_ghcr: ${{ vars.SECURITY_ALLOW_PUSH_TO_GHCR || 'false' }}
+
+  container-pr-verifications:
+    needs: [resolve-ci-context]
+    if: >-
+      needs.resolve-ci-context.outputs.should_run == 'true' &&
+      needs.resolve-ci-context.outputs.is_container == 'true' &&
+      needs.resolve-ci-context.outputs.is_pr == 'true'
+    uses: ./.github/workflows/container-pr-verifications.yml
+    secrets: inherit
+    with:
+      release_version: ${{ needs.resolve-ci-context.outputs.release_version }}
