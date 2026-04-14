@@ -20,7 +20,7 @@ runs:
     - name: Validate Tag and Release
       shell: bash
       env:
-        RELEASE_VERSION: ${{ inputs.release_version }}
+        INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
       run: |
         set -euo pipefail
         "${TAG_AND_RELEASE_VALIDATOR_SCRIPT}"
