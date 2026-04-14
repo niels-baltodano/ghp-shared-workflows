@@ -1,0 +1,26 @@
+---
+name: GitOps Tag and Release Creator
+description: Crea un tag de release y una release en GitHub con el mismo nombre, validando que el tag siga el patrón semver y que no exista una release con ese tag previamente creada
+inputs:
+  release_version:
+    description: "La versión de release a validar (debe seguir el patrón semver, ej: v1.2.3)"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Set shared paths
+      shell: bash
+      run: |
+        SCRIPTS_PATH=".ci-toolkit/.github/scripts"
+        SCRIPT="${SCRIPTS_PATH}/shell/gitops/tag-release-creator/tag-and-release-creator.sh"
+        chmod +x "${SCRIPT}"
+        echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
+        echo "TAG_AND_RELEASE_CREATOR_SCRIPT=${SCRIPT}" >> $GITHUB_ENV
+
+    - name: Create Tag and Release
+      shell: bash
+      env:
+        INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+      run: |
+        set -euo pipefail
+        "${TAG_AND_RELEASE_CREATOR_SCRIPT}"
