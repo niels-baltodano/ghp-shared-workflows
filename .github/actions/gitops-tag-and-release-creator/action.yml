@@ -5,6 +5,10 @@ inputs:
   release_version:
     description: "La versión de release a validar (debe seguir el patrón semver, ej: v1.2.3)"
     required: true
+  environment:
+    description: "El entorno para el cual se está creando la release (ej: staging, production)"
+    required: false
+    default: "dev"
 runs:
   using: "composite"
   steps:
@@ -21,6 +25,7 @@ runs:
       shell: bash
       env:
         INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+        INPUT_ENVIRONMENT: ${{ inputs.environment }}
       run: |
         set -euo pipefail
         "${TAG_AND_RELEASE_CREATOR_SCRIPT}"
