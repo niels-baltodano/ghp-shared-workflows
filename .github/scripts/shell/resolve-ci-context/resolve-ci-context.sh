@@ -31,6 +31,8 @@ HEAD=""
 BASE=""
 REF_NAME=""
 TARGET_ACTION=""
+SHA=""
+REPO=""
 
 RELEASE_VERSION=""
 RELEASE_VERSION_NUMBER=""
@@ -76,6 +78,8 @@ resolve_context() {
   BASE="$(strip_heads_prefix "${GITHUB_BASE_REF:-}")"
   REF_NAME="$(strip_heads_prefix "${GITHUB_REF_NAME}")"
   TARGET_ACTION="${INPUT_TARGET_ACTION:-${TARGET_ACTION_CONTAINER}}"
+  SHA="${GITHUB_SHA:-}"
+  REPO="${GITHUB_REPOSITORY:-}"
 
   log_info "Context: event=${EVENT} head=${HEAD} base=${BASE} ref=${REF_NAME} target=${TARGET_ACTION}"
 }
@@ -214,6 +218,46 @@ validate_release_branch() {
   return 0
 }
 
+# ============================================================
+# Push Version Resolution
+# ============================================================
+
+##
+# On a push-to-main event GITHUB_HEAD_REF is empty — the source branch
+# is no longer available from env vars. Queries the GitHub API for the
+# PR associated with the merge commit to recover the head branch name,
+# then delegates to validate_release_branch to populate RELEASE_VERSION
+# and RELEASE_VERSION_NUMBER.
+#
+# Logs a warning (non-fatal) when no associated PR is found (e.g. direct
+# push, or the repo token lacks pull-requests read scope).
+#
+# @param $1 sha   — merge commit SHA (GITHUB_SHA)
+# @param $2 repo  — owner/repo slug (GITHUB_REPOSITORY)
+#
+resolve_version_from_push() {
+  local sha="$1"
+  local repo="$2"
+
+  if [[ -z "${sha}" || -z "${repo}" ]]; then
+    log_warn "GITHUB_SHA o GITHUB_REPOSITORY no disponibles. release_version no resoluble en push."
+    return 0
+  fi
+
+  local source_branch
+  source_branch="$(gh api "repos/${repo}/commits/${sha}/pulls" \
+    --jq '.[0].head.ref // ""' 2>/dev/null || echo "")"
+
+  if [[ -z "${source_branch}" ]]; then
+    log_warn "No se encontró PR asociado al commit '${sha}'. release_version no resoluble."
+    return 0
+  fi
+
+  if ! validate_release_branch "${source_branch}" "push → main"; then
+    log_warn "La rama del PR '${source_branch}' no es una rama de release válida."
+  fi
+}
+
 # # ============================================================
 # # Target Validation
 # # ============================================================
@@ -255,6 +299,7 @@ evaluate_policy() {
 
   if is_push && [[ "${REF_NAME}" == "main" ]]; then
     log_ok "Push a main detectado."
+    resolve_version_from_push "${SHA}" "${REPO}"
     SHOULD_RUN=true
     return 0
   fi
