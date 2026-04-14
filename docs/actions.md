@@ -4,9 +4,10 @@
 
 Composite action that decides whether the pipeline should run and which path to take.
 
-**Input**
+**Inputs**
 
 - `target_action` optional string, defaults to `container`
+- `github_token` required string
 
 **Outputs**
 
@@ -16,10 +17,10 @@ Composite action that decides whether the pipeline should run and which path to 
 - `is_dispatch`
 - `is_hotfix`
 - `is_container`
+- `is_flutter`
 - `release_version`
 - `release_version_number`
 - `build_number`
-- `is_flutter`
 - `active_branch`
 
 **Purpose**
@@ -28,17 +29,19 @@ Composite action that decides whether the pipeline should run and which path to 
 - Gate execution by branch policy.
 - Detect whether the repo is container-based or Flutter-based.
 
+---
+
 ## `build-and-push-container-image`
 
 Composite action that builds, scans, and pushes the container image.
 
 **Inputs**
 
-- `github_token` required
+- `github_token` required string
 - `trivy_severity` optional string, default `CRITICAL,HIGH`
 - `trivy_ignore_unfixed` optional string, default `true`
 - `trivy_exit_code` optional string, default `1`
-- `projectlanguage` optional string, default `N/A`
+- `project_language` optional string, default `N/A`
 - `security_allow_push_to_ghcr` optional string, default `false`
 - `is_single_branch_deployment` optional string, default `false`
 
@@ -46,33 +49,117 @@ Composite action that builds, scans, and pushes the container image.
 
 1. Set up Docker Buildx.
 2. Log in to GHCR.
-3. Install Trivy when needed.
-4. Build the image.
-5. Scan the image.
-6. Push the image when policy allows it.
+3. Install Trivy (resolves latest safe version via OSV.dev, falls back to pinned safe version).
+4. Build the image (`build-and-push.sh build`).
+5. Scan the image (`build-and-push.sh scan`). Runs with `continue-on-error: true`.
+6. Push the image when `trivy_scan_result == 'passed'` or `== 'skipped'`, or `security_allow_push_to_ghcr == 'true'`.
 
 **Outputs**
 
-- The action currently depends on shell-script outputs for:
-  - `container_image_name_ghcr`
-  - `container_image_digest_ghcr`
-  - `client_repo_sha`
+- `container_image_name_ghcr` — image name with short SHA tag
+- `container_image_digest_ghcr` — full digest after push
+- `client_repo_sha` — commit SHA that triggered the build
+
+**Known mismatch**
+
+- `is_single_branch_deployment` is an action input but `container-build-push.yml` does not forward it to this action.
+
+---
+
+## `gitops-merge-validator`
+
+Composite action that validates a PR's release branch is up to date with `main` before allowing a merge.
+
+**Inputs**
+
+- `github_token` required string
+
+**Outputs**
+
+- `branch_freshness_check` — `valid`, `skipped`, or exits with error
+
+**Behavior**
+
+- On PR → main: fetches both branches, checks divergence (`MAX_BEHIND`, default 0), detects merge conflicts via `git merge-tree` dry-run.
+- On push to main or unknown event: skips (result = `skipped`).
+- On `workflow_dispatch`: validates the dispatched branch.
+
+---
+
+## `gitops-tag-and-release-validator`
+
+Composite action that validates a tag follows semver and that neither the tag nor a release with that name already exist in the repository.
+
+**Inputs**
+
+- `release_version` required string — must match `v?MAJOR.MINOR.PATCH[-pre][+build]`
+
+**Outputs** (written to `GITHUB_OUTPUT`)
+
+- `validation_result` — `passed` or `failed`
+- `tag_exists` — `true` or `false`
+- `release_exists` — `true` or `false`
+
+**Behavior**
+
+- Semver format is a hard precondition (exits on failure).
+- Tag and release checks both run independently so the caller always gets both states.
+- Exits non-zero when `validation_result == failed`.
+
+---
+
+## `gitops-tag-and-release-creator`
+
+Composite action that creates a git tag and a GitHub release for the given version.
+
+**Inputs**
+
+- `release_version` required string
+- `github_token` required string
+- `environment` optional string, default `dev`
+
+**Behavior**
+
+1. Validates the tag does not already exist.
+2. Creates the tag at `GITHUB_SHA`.
+3. Looks up the previous tag to build a commit-range changelog.
+4. Creates a GitHub release with an auto-generated body listing commits since the previous tag.
+
+**Outputs** (written to `GITHUB_OUTPUT`)
+
+- `tag_created` — `true`
+- `release_created` — `true`
+- `release_url` — URL of the created release
+
+---
 
 ## Shell scripts
 
 ### `resolve-ci-context.sh`
 
 - Requires `GITHUB_EVENT_NAME`, `GITHUB_REF_NAME`, and `GITHUB_OUTPUT`
-- Uses `GITHUB_HEAD_REF`, `GITHUB_BASE_REF`, `GITHUB_WORKSPACE`, and optional `INPUT_TARGET_ACTION`
+- Uses `GITHUB_HEAD_REF`, `GITHUB_BASE_REF`, `GITHUB_WORKSPACE`, optional `INPUT_TARGET_ACTION`
 - Supports `container` and `flutter`
+- For Flutter: validates `pubspec.yaml` version matches the branch version string
 
 ### `build-and-push.sh`
 
-- Commands: `build`, `scan`, `push`
-- Depends on Docker, GHCR auth, and Trivy for scanning
+Commands: `build`, `scan`, `push`
 
-## Contract warnings
+- **build**: resolves image name (`ghcr.io/<repo>:<short-sha>`), reads `.env` for `--build-arg`, adds OCI labels, runs `docker buildx build --load`
+- **scan**: runs Trivy; writes `trivy_scan_result=passed/failed/skipped` to `GITHUB_OUTPUT`
+- **push**: runs `docker push`, resolves digest via inspect or imagetools, prunes dangling images
 
-- `project_language` vs `projectlanguage` is inconsistent today
-- `is_single_branch_deployment` is not fully wired through today
-- top-level action outputs are not declared, so workflow chaining is fragile
+### `merge-validator.sh`
+
+- Requires `GITHUB_EVENT_NAME`, `GITHUB_HEAD_REF`, `GITHUB_BASE_REF`, `GITHUB_REF_NAME`
+- Configurable via `INPUT_FETCH_DEPTH` (default 50) and `INPUT_MAX_BEHIND` (default 0)
+
+### `tag-and-release-creator.sh`
+
+- Requires `INPUT_RELEASE_VERSION`, `GITHUB_REPOSITORY`, `GITHUB_SHA`, `INPUT_ENVIRONMENT`, `GH_TOKEN`
+
+### `tag-and-release-validator.sh`
+
+- Requires `INPUT_RELEASE_VERSION`, `GITHUB_REPOSITORY`, `GITHUB_OUTPUT`
+- Uses `gh` CLI for tag and release existence checks
