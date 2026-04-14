@@ -31,7 +31,7 @@ jobs:
       is_hotfix: ${{ steps.ctx.outputs.is_hotfix }}
       release_version: ${{ steps.ctx.outputs.release_version }}
       release_version_number: ${{ steps.ctx.outputs.release_version_number }}
-      # branch_freshness_check: ${{ steps.merge-validator.outputs.branch_freshness_check }}
+      branch_freshness_check: ${{ steps.merge-validator.outputs.branch_freshness_check }}
     steps:
       - name: "Checkout code"
         uses: actions/checkout@v5
@@ -54,6 +54,15 @@ jobs:
         uses: ./.ci-toolkit/.github/actions/resolve-ci-context
         with:
           target_action: ${{ inputs.target_action }}
+
+      - name: Git Merge Validator
+        id: merge-validator
+        if: >-
+          steps.ctx.outputs.should_run == 'true' &&
+          (steps.ctx.outputs.is_pr == 'true' || steps.ctx.outputs.is_dispatch == 'true')
+        uses: ./.ci-toolkit/.github/actions/gitops-merge-validator
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   container-build-and-push:
     needs: [resolve-ci-context]
