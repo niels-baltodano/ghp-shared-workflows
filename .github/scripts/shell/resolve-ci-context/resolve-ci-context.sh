@@ -311,6 +311,13 @@ evaluate_policy() {
       exit "${EXIT_ERROR}"
     fi
 
+    # Guard: tag already released
+    if tag_exists_remote "${RELEASE_VERSION}" "${REPO}"; then
+      log_error "El tag '${RELEASE_VERSION}' ya existe en '${REPO}'."
+      log_error "La versión ya fue liberada. Crea una nueva rama release/ con una versión incrementada."
+      exit "${EXIT_ERROR}"
+    fi
+
     SHOULD_RUN=true
     return 0
   fi
