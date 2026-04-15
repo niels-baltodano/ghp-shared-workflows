@@ -38,6 +38,17 @@ on:
         description: "The SHA of the commit in the client repository that triggered the workflow"
         value: ${{ jobs.build-and-push.outputs.client_repo_sha }}
 jobs:
+  # ------------------------------------------------------------
+  # @description  Builds the container image from the client repo's
+  #               Dockerfile, scans it with Trivy, and pushes the
+  #               result to GHCR. The scan runs with continue-on-error
+  #               so its result is written to outputs before any failure
+  #               propagates; the push step reads that result to decide
+  #               whether to proceed.
+  # @output       container_image_name_ghcr   - Full image reference with short-SHA tag.
+  # @output       container_image_digest_ghcr - Immutable sha256 digest after push.
+  # @output       client_repo_sha             - Commit SHA that produced the image.
+  # ------------------------------------------------------------
   build-and-push:
     runs-on: ubuntu-latest
     outputs:
@@ -49,6 +60,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          persist-credentials: true
 
       - name: Checkout monorepo de workflows
         uses: actions/checkout@v5
@@ -57,6 +69,7 @@ jobs:
           ref: main
           path: .ci-toolkit
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
 
       - name: Build and Push Container Image
         id: build
@@ -65,3 +78,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           project_language: ${{ inputs.project_language }}
           security_allow_push_to_ghcr: ${{ inputs.security_allow_push_to_ghcr }}
+          is_single_branch_deployment: ${{ inputs.is_single_branch_deployment }}

@@ -5,66 +5,49 @@ on:
   workflow_call:
     outputs:
       container_image_name_ghcr:
-        description: "the name of the container in GHCR"
+        description: "The full GHCR image reference built and pushed by the pipeline"
         value: ${{ jobs.container-build-and-push.outputs.container_image_name_ghcr }}
       container_image_digest_ghcr:
-        description: "The digest of the container image in GHCR"
+        description: "The immutable digest of the container image pushed to GHCR"
         value: ${{ jobs.container-build-and-push.outputs.container_image_digest_ghcr }}
       client_repo_sha:
-        description: "The SHA of the commit in the client repository (called the shared library)"
-        value: ${{ jobs.resolve-ci-context.outputs.client_repo_sha }}
+        description: "The commit SHA of the client repo that produced the container image"
+        value: ${{ jobs.container-build-and-push.outputs.client_repo_sha }}
     inputs:
       target_action:
+        description: "High-level pipeline intent. Valid values: container | flutter"
         required: true
         type: string
 
 jobs:
+  # ------------------------------------------------------------
+  # @description  Entry gate for every pipeline run. Inspects the GitHub
+  #               event and branch to decide whether the pipeline should
+  #               proceed and which downstream jobs are eligible.
+  #               Always runs — downstream jobs gate on its outputs.
+  # @output       should_run          - Master gate; false short-circuits all downstream jobs.
+  # @output       is_pr / is_push / is_dispatch - Mutually exclusive event flags.
+  # @output       is_container        - True when a Dockerfile is detected.
+  # @output       release_version     - Version string inferred from the branch name.
+  # @output       branch_freshness_check - Result of the merge-validator (pr / dispatch only).
+  # ------------------------------------------------------------
   resolve-ci-context:
-    name: "ValidateContext(Event: ${{ github.event_name }})"
-    runs-on: ubuntu-slim
-    outputs:
-      should_run: ${{ steps.ctx.outputs.should_run }}
-      is_pr: ${{ steps.ctx.outputs.is_pr }}
-      is_push: ${{ steps.ctx.outputs.is_push }}
-      is_dispatch: ${{ steps.ctx.outputs.is_dispatch }}
-      is_container: ${{ steps.ctx.outputs.is_container }}
-      is_hotfix: ${{ steps.ctx.outputs.is_hotfix }}
-      release_version: ${{ steps.ctx.outputs.release_version }}
-      release_version_number: ${{ steps.ctx.outputs.release_version_number }}
-      branch_freshness_check: ${{ steps.merge-validator.outputs.branch_freshness_check }}
-    steps:
-      - name: "Checkout code"
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          persist-credentials: true
+    uses: ./.github/workflows/resolve-ci-context.yml
+    secrets: inherit
+    with:
+      target_action: ${{ inputs.target_action }}
 
-      - name: Checkout monorepo(workflows and actions)
-        uses: actions/checkout@v5
-        with:
-          repository: niels-baltodano/ghp-shared-workflows
-          ref: main
-          path: .ci-toolkit
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Resolve CI/CD context
-        id: ctx
-        uses: ./.ci-toolkit/.github/actions/resolve-ci-context
-        with:
-          target_action: ${{ inputs.target_action }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Git Merge Validator
-        id: merge-validator
-        if: >-
-          steps.ctx.outputs.should_run == 'true' &&
-          (steps.ctx.outputs.is_pr == 'true' || steps.ctx.outputs.is_dispatch == 'true')
-        uses: ./.ci-toolkit/.github/actions/gitops-merge-validator
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
+  # ------------------------------------------------------------
+  # @description  Builds the container image, runs a Trivy security scan,
+  #               and pushes it to GHCR. Only triggered on workflow_dispatch
+  #               so that manual promotion is always an explicit action.
+  # @needs        resolve-ci-context
+  # @if           should_run   - Pipeline gate passed (valid branch + event).
+  #               is_container - Client repo contains a Dockerfile.
+  #               is_dispatch  - Event is workflow_dispatch; excludes PR and
+  #                              push-to-main to prevent accidental pushes to
+  #                              GHCR on automated commits.
+  # ------------------------------------------------------------
   container-build-and-push:
     needs: [resolve-ci-context]
     if: >-
@@ -77,6 +60,18 @@ jobs:
       release_version: ${{ needs.resolve-ci-context.outputs.release_version }}
       security_allow_push_to_ghcr: ${{ vars.SECURITY_ALLOW_PUSH_TO_GHCR || 'false' }}
 
+  # ------------------------------------------------------------
+  # @description  Validates the release version format and confirms that
+  #               neither a matching tag nor a GitHub release exists yet.
+  #               Acts as an early-warning gate on open PRs so failures
+  #               are caught before merge rather than after.
+  # @needs        resolve-ci-context
+  # @if           should_run   - Pipeline gate passed.
+  #               is_container - Client repo contains a Dockerfile.
+  #               is_pr        - Event is a pull_request; ensures this
+  #                              verification runs only during code review,
+  #                              not on push or dispatch.
+  # ------------------------------------------------------------
   container-pr-verifications:
     needs: [resolve-ci-context]
     if: >-
@@ -88,6 +83,17 @@ jobs:
     with:
       release_version: ${{ needs.resolve-ci-context.outputs.release_version }}
 
+  # ------------------------------------------------------------
+  # @description  Creates the Git tag and GitHub release that marks a
+  #               version as shipped. Runs after a PR is merged to main
+  #               so the release always points to the exact merge commit.
+  # @needs        resolve-ci-context
+  # @if           should_run   - Pipeline gate passed.
+  #               is_container - Client repo contains a Dockerfile.
+  #               is_push      - Event is a push to main, meaning a PR was
+  #                              just merged; excludes dispatch and PR events
+  #                              to prevent duplicate or premature releases.
+  # ------------------------------------------------------------
   container-create-tag-and-release:
     needs: [resolve-ci-context]
     if: >-
