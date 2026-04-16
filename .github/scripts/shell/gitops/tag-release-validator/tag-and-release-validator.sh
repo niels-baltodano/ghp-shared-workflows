@@ -17,18 +17,18 @@ source "${SCRIPTS_DIR}/_lib_validator.sh"
 
 # ── Logging ───────────────────────────────────────────────────
 
-log_info()  { echo "ℹ️  $*" >&2; }
-log_ok()    { echo "✅ $*" >&2; }
-log_warn()  { echo "⚠️  $*" >&2; }
+log_info() { echo "ℹ️  $*" >&2; }
+log_ok() { echo "✅ $*" >&2; }
+log_warn() { echo "⚠️  $*" >&2; }
 log_error() { echo "❌ $*" >&2; }
 
 # ── Environment guard ────────────────────────────────────────
 
 _require_env() {
-  local name="$1"
-  [[ -n "${!name:-}" ]] && return 0
-  log_error "Required variable '${name}' is not set."
-  exit 1
+	local name="$1"
+	[[ -n "${!name:-}" ]] && return 0
+	log_error "Required variable '${name}' is not set."
+	exit 1
 }
 
 # ── Entry point ──────────────────────────────────────────────
@@ -44,22 +44,22 @@ _require_env() {
 #                  or tag / release already exists.
 # ------------------------------------------------------------
 main() {
-  _require_env "INPUT_RELEASE_VERSION"
-  _require_env "GITHUB_REPOSITORY"
-  _require_env "GITHUB_OUTPUT"
+	_require_env "INPUT_RELEASE_VERSION"
+	_require_env "GITHUB_REPOSITORY"
+	_require_env "GITHUB_OUTPUT"
 
-  declare -A TRV_CTX
-  ctx_build TRV_CTX \
-    "${INPUT_RELEASE_VERSION}" \
-    "${GITHUB_REPOSITORY}" \
-    "${GITHUB_OUTPUT}"
+	declare -A TRV_CTX
+	ctx_build TRV_CTX \
+		"${INPUT_RELEASE_VERSION}" \
+		"${GITHUB_REPOSITORY}" \
+		"${GITHUB_OUTPUT}"
 
-  validators_run "TRV_CTX"
+	validators_run "TRV_CTX"
 
-  output_export  "TRV_CTX"
-  output_summary "TRV_CTX"
+	output_export "TRV_CTX"
+	output_summary "TRV_CTX"
 
-  [[ "${TRV_CTX[${TRV_F_RESULT}]}" == "passed" ]] || exit 1
+	[[ "${TRV_CTX[${TRV_F_RESULT}]}" == "passed" ]] || exit 1
 }
 
 main "$@"

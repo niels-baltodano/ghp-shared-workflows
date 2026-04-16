@@ -25,18 +25,18 @@ readonly EXIT_ERROR=1
 
 # ── Logging ───────────────────────────────────────────────────
 
-log_info()  { echo "ℹ️  $*" >&2; }
-log_ok()    { echo "✅ $*" >&2; }
-log_warn()  { echo "⚠️  $*" >&2; }
+log_info() { echo "ℹ️  $*" >&2; }
+log_ok() { echo "✅ $*" >&2; }
+log_warn() { echo "⚠️  $*" >&2; }
 log_error() { echo "❌ $*" >&2; }
 
 # ── Environment guard ────────────────────────────────────────
 
 _require_env() {
-  local name="$1"
-  [[ -n "${!name:-}" ]] && return 0
-  log_error "Required variable '${name}' is not set."
-  exit "${EXIT_ERROR}"
+	local name="$1"
+	[[ -n "${!name:-}" ]] && return 0
+	log_error "Required variable '${name}' is not set."
+	exit "${EXIT_ERROR}"
 }
 
 # ── Entry point ──────────────────────────────────────────────
@@ -52,32 +52,32 @@ _require_env() {
 #                  or policy violation (invalid branch / duplicate tag).
 # ------------------------------------------------------------
 main() {
-  _require_env "GITHUB_EVENT_NAME"
-  _require_env "GITHUB_REF_NAME"
-  _require_env "GITHUB_OUTPUT"
+	_require_env "GITHUB_EVENT_NAME"
+	_require_env "GITHUB_REF_NAME"
+	_require_env "GITHUB_OUTPUT"
 
-  declare -A CI_CTX
-  ctx_build CI_CTX \
-    "${GITHUB_EVENT_NAME}" \
-    "${GITHUB_HEAD_REF:-}" \
-    "${GITHUB_BASE_REF:-}" \
-    "${GITHUB_REF_NAME}" \
-    "${INPUT_TARGET_ACTION:-}" \
-    "${GITHUB_SHA:-}" \
-    "${GITHUB_REPOSITORY:-}"
+	declare -A CI_CTX
+	ctx_build CI_CTX \
+		"${GITHUB_EVENT_NAME}" \
+		"${GITHUB_HEAD_REF:-}" \
+		"${GITHUB_BASE_REF:-}" \
+		"${GITHUB_REF_NAME}" \
+		"${INPUT_TARGET_ACTION:-}" \
+		"${GITHUB_SHA:-}" \
+		"${GITHUB_REPOSITORY:-}"
 
-  if ! ctx_validate_target "${CI_CTX[${CTX_F_TARGET}]}"; then
-    log_error "Unsupported target_action: '${CI_CTX[${CTX_F_TARGET}]}'"
-    exit "${EXIT_ERROR}"
-  fi
+	if ! ctx_validate_target "${CI_CTX[${CTX_F_TARGET}]}"; then
+		log_error "Unsupported target_action: '${CI_CTX[${CTX_F_TARGET}]}'"
+		exit "${EXIT_ERROR}"
+	fi
 
-  local is_flutter="0"
-  ctx_is_flutter_project "${GITHUB_WORKSPACE:-}" && is_flutter="1"
+	local is_flutter="0"
+	ctx_is_flutter_project "${GITHUB_WORKSPACE:-}" && is_flutter="1"
 
-  policy_evaluate "CI_CTX" "${GITHUB_WORKSPACE:-}" "${is_flutter}"
+	policy_evaluate "CI_CTX" "${GITHUB_WORKSPACE:-}" "${is_flutter}"
 
-  output_export  "CI_CTX" "${GITHUB_WORKSPACE:-}" "${GITHUB_OUTPUT}"
-  output_summary "CI_CTX" "${GITHUB_WORKSPACE:-}"
+	output_export "CI_CTX" "${GITHUB_WORKSPACE:-}" "${GITHUB_OUTPUT}"
+	output_summary "CI_CTX" "${GITHUB_WORKSPACE:-}"
 }
 
 main "$@"
