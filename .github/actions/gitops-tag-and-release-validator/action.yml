@@ -1,26 +1,34 @@
 ---
 name: GitOps Tag and Release Validator
-description: Valida que el tag de release siga el patrón semver y que exista una release con ese tag en GitHub
+description: >
+  Validates that the release version follows semver and that neither a matching
+  Git tag nor a GitHub release already exist in the repository.
+  Exits non-zero when validation fails.
+author: "DevOps Team"
+
 inputs:
   release_version:
-    description: "La versión de release a validar (debe seguir el patrón semver, ej: v1.2.3)"
-    required: true
-runs:
-  using: "composite"
-  steps:
-    - name: Set shared paths
-      shell: bash
-      run: |
-        SCRIPTS_PATH=".ci-toolkit/.github/scripts"
-        SCRIPT="${SCRIPTS_PATH}/shell/gitops/tag-release-validator/tag-and-release-validator.sh"
-        chmod +x "${SCRIPT}"
-        echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
-        echo "TAG_AND_RELEASE_VALIDATOR_SCRIPT=${SCRIPT}" >> $GITHUB_ENV
+    description: "Release version to validate (must follow semver, e.g. v1.2.3)."
+    required: false
+    default: ""
 
-    - name: Validate Tag and Release
-      shell: bash
-      env:
-        INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
-      run: |
-        set -euo pipefail
-        "${TAG_AND_RELEASE_VALIDATOR_SCRIPT}"
+outputs:
+  validation_result:
+    description: "Semver and existence validation result: passed / failed."
+    value: ${{ steps.run.outputs.validation_result }}
+  tag_exists:
+    description: "True when the tag already exists in the repository."
+    value: ${{ steps.run.outputs.tag_exists }}
+  release_exists:
+    description: "True when a GitHub release already exists for the version."
+    value: ${{ steps.run.outputs.release_exists }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      uses: ./.ci-toolkit/.github/actions/run-script
+      with:
+        script: gitops/tag-release-validator/tag-and-release-validator.sh
+        env_vars: |
+          INPUT_RELEASE_VERSION=${{ inputs.release_version }}

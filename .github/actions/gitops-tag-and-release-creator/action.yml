@@ -1,36 +1,45 @@
 ---
 name: GitOps Tag and Release Creator
-description: Crea un tag de release y una release en GitHub con el mismo nombre, validando que el tag siga el patrón semver y que no exista una release con ese tag previamente creada
+description: >
+  Creates a Git tag at the current commit and publishes a GitHub release with
+  an auto-generated changelog of commits since the previous tag.
+  Validates that the tag does not already exist before creating it.
+author: "DevOps Team"
+
 inputs:
   release_version:
-    description: "La versión de release a validar (debe seguir el patrón semver, ej: v1.2.3)"
-    required: true
+    description: "Release version to tag (must follow semver, e.g. v1.2.3)."
+    required: false
+    default: ""
   github_token:
-    description: "Token de GitHub con permisos para crear tags y releases en el repositorio"
-    required: true
+    description: "GitHub token with permissions to create tags and releases."
+    required: false
+    default: ""
   environment:
-    description: "El entorno para el cual se está creando la release (ej: staging, production)"
+    description: "Target environment for the release (e.g. dev, staging, production)."
     required: false
     default: "dev"
-runs:
-  using: "composite"
-  steps:
-    - name: Set shared paths
-      shell: bash
-      run: |
-        SCRIPTS_PATH=".ci-toolkit/.github/scripts"
-        SCRIPT="${SCRIPTS_PATH}/shell/gitops/tag-release-creator/tag-and-release-creator.sh"
-        chmod +x "${SCRIPT}"
-        echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
-        echo "TAG_AND_RELEASE_CREATOR_SCRIPT=${SCRIPT}" >> $GITHUB_ENV
 
-    - name: Create Tag and Release
-      shell: bash
-      env:
-        INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
-        INPUT_ENVIRONMENT: ${{ inputs.environment }}
-        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
-        GH_TOKEN: ${{ inputs.github_token }}
-      run: |
-        set -euo pipefail
-        "${TAG_AND_RELEASE_CREATOR_SCRIPT}"
+outputs:
+  tag_created:
+    description: "True when the Git tag was successfully created."
+    value: ${{ steps.run.outputs.tag_created }}
+  release_created:
+    description: "True when the GitHub release was successfully created."
+    value: ${{ steps.run.outputs.release_created }}
+  release_url:
+    description: "URL of the created GitHub release."
+    value: ${{ steps.run.outputs.release_url }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      uses: ./.ci-toolkit/.github/actions/run-script
+      with:
+        script: gitops/tag-release-creator/tag-and-release-creator.sh
+        env_vars: |
+          INPUT_RELEASE_VERSION=${{ inputs.release_version }}
+          INPUT_ENVIRONMENT=${{ inputs.environment }}
+          INPUT_GITHUB_TOKEN=${{ inputs.github_token }}
+          GH_TOKEN=${{ inputs.github_token }}

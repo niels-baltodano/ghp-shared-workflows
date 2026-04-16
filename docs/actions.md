@@ -1,5 +1,35 @@
 # Actions Reference
 
+## `run-script`
+
+Generic script runner used by all domain composite actions. Eliminates the shared boilerplate (SCRIPTS_PATH setup, `chmod +x`, env-var wiring) that was previously duplicated across every action.
+
+**Inputs**
+
+- `script` required string — path relative to `.github/scripts/shell/` (e.g. `container/build-and-push.sh`)
+- `args` optional string — space-separated positional arguments passed to the script (e.g. `build`, `scan`, `push`)
+- `env_vars` optional multiline string — `KEY=VALUE` lines exported into the process environment before the script runs
+
+**Behavior**
+
+1. Exports each line from `env_vars` as a process environment variable (expansion is safe — values are read from an env var, not interpolated into the shell body).
+2. Resolves the full script path under `.ci-toolkit/.github/scripts/shell/`.
+3. Makes the script executable and runs it, forwarding any positional `args`.
+
+**Outputs**
+
+Declares the union of all script outputs across every domain so callers can reference them via `steps.<id>.outputs.<name>`:
+
+| Domain | Output keys |
+|---|---|
+| resolve-ci-context | `should_run`, `is_pr`, `is_push`, `is_dispatch`, `is_hotfix`, `is_container`, `is_flutter`, `release_version`, `release_version_number`, `build_number`, `active_branch` |
+| merge-validator | `branch_freshness_check` |
+| tag-release-validator | `validation_result`, `tag_exists`, `release_exists` |
+| tag-release-creator | `tag_created`, `release_created`, `release_url` |
+| build-and-push | `container_image_name_ghcr`, `client_repo_sha`, `container_image_digest_ghcr`, `trivy_scan_result` |
+
+---
+
 ## `resolve-ci-context`
 
 Composite action that decides whether the pipeline should run and which path to take.
@@ -49,10 +79,10 @@ Composite action that builds, scans, and pushes the container image.
 
 1. Set up Docker Buildx.
 2. Log in to GHCR.
-3. Install Trivy via `scripts/shell/tools/trivy.sh` (resolves latest safe version via OSV.dev advisory check, falls back to pinned safe version).
-4. Build the image (`build-and-push.sh build`).
-5. Scan the image (`build-and-push.sh scan`). Runs with `continue-on-error: true`.
-6. Push the image when `trivy_scan_result == 'passed'` or `== 'skipped'`, or `security_allow_push_to_ghcr == 'true'`.
+3. Install Trivy — delegates to `run-script` with `script: tools/trivy.sh`.
+4. Build the image — delegates to `run-script` with `script: container/build-and-push.sh`, `args: build`.
+5. Scan the image — delegates to `run-script` with `args: scan`. Runs with `continue-on-error: true`.
+6. Push the image — delegates to `run-script` with `args: push`. Runs only when `trivy_scan_result == 'passed'` or `== 'skipped'`, or `security_allow_push_to_ghcr == 'true'`.
 
 **Outputs**
 
@@ -88,9 +118,9 @@ Composite action that validates a tag follows semver and that neither the tag no
 
 **Inputs**
 
-- `release_version` required string — must match `v?MAJOR.MINOR.PATCH[-pre][+build]`
+- `release_version` optional string — must match `v?MAJOR.MINOR.PATCH[-pre][+build]`
 
-**Outputs** (written to `GITHUB_OUTPUT`)
+**Outputs**
 
 - `validation_result` — `passed` or `failed`
 - `tag_exists` — `true` or `false`
@@ -110,8 +140,8 @@ Composite action that creates a git tag and a GitHub release for the given versi
 
 **Inputs**
 
-- `release_version` required string
-- `github_token` required string
+- `release_version` optional string
+- `github_token` optional string
 - `environment` optional string, default `dev`
 
 **Behavior**

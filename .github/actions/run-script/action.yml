@@ -1,0 +1,138 @@
+name: Run Shell Script
+description: >
+  Generic script runner. Sets SCRIPTS_PATH, makes the target script executable,
+  exports caller-supplied env vars into the process environment, and runs the script.
+  All known script outputs are forwarded so callers can reference them via
+  steps.<id>.outputs.<name>.
+author: "DevOps Team"
+
+inputs:
+  script:
+    description: "Path to the script relative to .github/scripts/shell/ (e.g. 'container/build-and-push.sh')"
+    required: true
+  args:
+    description: "Space-separated arguments passed to the script (e.g. 'build', 'scan', 'push')"
+    required: false
+    default: ""
+  env_vars:
+    description: "Newline-separated KEY=VALUE pairs exported as environment variables before the script runs"
+    required: false
+    default: ""
+
+outputs:
+  # ── resolve-ci-context ────────────────────────────────────────
+  should_run:
+    description: "Master pipeline gate — false short-circuits all downstream jobs"
+    value: ${{ steps.exec.outputs.should_run }}
+  is_pr:
+    description: "True for pull_request events"
+    value: ${{ steps.exec.outputs.is_pr }}
+  is_push:
+    description: "True for push events to main"
+    value: ${{ steps.exec.outputs.is_push }}
+  is_dispatch:
+    description: "True for workflow_dispatch events"
+    value: ${{ steps.exec.outputs.is_dispatch }}
+  is_hotfix:
+    description: "True when the active branch has a hotfix/ prefix"
+    value: ${{ steps.exec.outputs.is_hotfix }}
+  is_container:
+    description: "True when a Dockerfile is detected at repo root"
+    value: ${{ steps.exec.outputs.is_container }}
+  is_flutter:
+    description: "True when a pubspec.yaml is detected at repo root"
+    value: ${{ steps.exec.outputs.is_flutter }}
+  release_version:
+    description: "Full version string inferred from the branch (e.g. v1.2.3)"
+    value: ${{ steps.exec.outputs.release_version }}
+  release_version_number:
+    description: "Numeric part of the version string (e.g. 1.2.3)"
+    value: ${{ steps.exec.outputs.release_version_number }}
+  build_number:
+    description: "Flutter build number extracted from the branch version string"
+    value: ${{ steps.exec.outputs.build_number }}
+  active_branch:
+    description: "Active branch name relevant to the triggering event"
+    value: ${{ steps.exec.outputs.active_branch }}
+  # ── merge-validator ───────────────────────────────────────────
+  branch_freshness_check:
+    description: "Result of the merge-validator freshness check (passed / skipped)"
+    value: ${{ steps.exec.outputs.branch_freshness_check }}
+  # ── tag-release-validator ─────────────────────────────────────
+  validation_result:
+    description: "Semver and existence validation result (passed / failed)"
+    value: ${{ steps.exec.outputs.validation_result }}
+  tag_exists:
+    description: "True when the tag already exists in the repository"
+    value: ${{ steps.exec.outputs.tag_exists }}
+  release_exists:
+    description: "True when a GitHub release already exists for the version"
+    value: ${{ steps.exec.outputs.release_exists }}
+  # ── tag-release-creator ───────────────────────────────────────
+  tag_created:
+    description: "True when the Git tag was successfully created"
+    value: ${{ steps.exec.outputs.tag_created }}
+  release_created:
+    description: "True when the GitHub release was successfully created"
+    value: ${{ steps.exec.outputs.release_created }}
+  release_url:
+    description: "URL of the created GitHub release"
+    value: ${{ steps.exec.outputs.release_url }}
+  # ── build-and-push ────────────────────────────────────────────
+  container_image_name_ghcr:
+    description: "Full GHCR image reference with short SHA tag"
+    value: ${{ steps.exec.outputs.container_image_name_ghcr }}
+  client_repo_sha:
+    description: "Commit SHA of the client repo that triggered the build"
+    value: ${{ steps.exec.outputs.client_repo_sha }}
+  container_image_digest_ghcr:
+    description: "Immutable digest of the pushed container image"
+    value: ${{ steps.exec.outputs.container_image_digest_ghcr }}
+  trivy_scan_result:
+    description: "Trivy scan outcome: passed / failed / skipped"
+    value: ${{ steps.exec.outputs.trivy_scan_result }}
+
+runs:
+  using: composite
+  steps:
+    # ------------------------------------------------------------
+    # @description  Single step that owns the full execution contract:
+    #               1. Parses env_vars (KEY=VALUE lines) and exports each
+    #                  pair into the process environment so the script sees them.
+    #               2. Resolves SCRIPTS_PATH and makes the target script executable.
+    #               3. Runs the script, forwarding optional positional args.
+    #
+    #               env_vars are expanded from the RAW_ENV_VARS env var rather than
+    #               via inline ${{ }} substitution in the run body. This prevents
+    #               shell injection when values contain special characters.
+    # ------------------------------------------------------------
+    - id: exec
+      shell: bash
+      env:
+        SCRIPT_REL_PATH: ${{ inputs.script }}
+        SCRIPT_ARGS: ${{ inputs.args }}
+        RAW_ENV_VARS: ${{ inputs.env_vars }}
+      run: |
+        set -euo pipefail
+
+        # Export caller-supplied env vars into the process environment.
+        # Each line must be KEY=VALUE; blank lines are silently skipped.
+        if [[ -n "${RAW_ENV_VARS}" ]]; then
+          while IFS= read -r line || [[ -n "${line}" ]]; do
+            [[ -z "${line}" ]] && continue
+            key="${line%%=*}"
+            value="${line#*=}"
+            export "${key}=${value}"
+          done <<< "${RAW_ENV_VARS}"
+        fi
+
+        SCRIPTS_PATH=".ci-toolkit/.github/scripts"
+        script="${SCRIPTS_PATH}/shell/${SCRIPT_REL_PATH}"
+        chmod +x "${script}"
+
+        if [[ -n "${SCRIPT_ARGS}" ]]; then
+          read -ra args <<< "${SCRIPT_ARGS}"
+          "${script}" "${args[@]}"
+        else
+          "${script}"
+        fi

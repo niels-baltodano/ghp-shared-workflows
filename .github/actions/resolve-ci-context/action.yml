@@ -1,71 +1,64 @@
 name: resolve-ci-context
-description: "Valida el contexto del repositorio respecto a sus acciones"
+description: >
+  Inspects the GitHub event and branch, validates branch policy, detects the
+  project type (container / flutter), and resolves the release version.
+  Outputs a set of boolean flags consumed by downstream jobs to decide whether
+  and how to run.
 author: "DevOps Team"
 
 inputs:
   target_action:
-    description: >
-      High-level pipeline intent (e.g. container, flutter).
-      Optional; defaults are resolved internally.
+    description: "High-level pipeline intent (e.g. container, flutter). Optional; resolved internally when omitted."
     required: false
+    default: ""
   github_token:
-    description: "Token de GitHub con permisos para validar el contexto del repositorio"
-    required: true
+    description: "GitHub token for authenticated gh CLI calls during context resolution."
+    required: false
+    default: ""
+
 outputs:
   should_run:
-    description: "Flag indicating if the pipeline should proceed based on context."
-    value: ${{ steps.resolve.outputs.should_run }}
+    description: "Master gate — false when the event/branch combo does not meet pipeline entry criteria."
+    value: ${{ steps.run.outputs.should_run }}
   is_pr:
-    description: "Flag indicating if the event is a pull request."
-    value: ${{ steps.resolve.outputs.is_pr }}
+    description: "True for pull_request events."
+    value: ${{ steps.run.outputs.is_pr }}
   is_push:
-    description: "Flag indicating if the event is a push."
-    value: ${{ steps.resolve.outputs.is_push }}
+    description: "True for push events to main."
+    value: ${{ steps.run.outputs.is_push }}
   is_dispatch:
-    description: "Flag indicating if the event is a workflow dispatch."
-    value: ${{ steps.resolve.outputs.is_dispatch }}
+    description: "True for workflow_dispatch events."
+    value: ${{ steps.run.outputs.is_dispatch }}
   is_hotfix:
-    description: "Flag indicating if the context is a hotfix release."
-    value: ${{ steps.resolve.outputs.is_hotfix }}
+    description: "True when the active branch has a hotfix/ prefix."
+    value: ${{ steps.run.outputs.is_hotfix }}
   is_container:
-    description: "Flag indicating if the target action involves container operations."
-    value: ${{ steps.resolve.outputs.is_container }}
-  release_version:
-    description: "Inferred version string based on context (e.g. branch name, tag)."
-    value: ${{ steps.resolve.outputs.release_version }}
-  release_version_number:
-    description: "Inferred version number extracted from the version string."
-    value: ${{ steps.resolve.outputs.release_version_number }}
-  build_number:
-    description: "Unique build number for flutter in pubspec.yaml"
-    value: ${{ steps.resolve.outputs.build_number }}
+    description: "True when a Dockerfile is detected at repo root."
+    value: ${{ steps.run.outputs.is_container }}
   is_flutter:
-    description: "Flag indicating if the target action involves Flutter operations."
-    value: ${{ steps.resolve.outputs.is_flutter }}
+    description: "True when a pubspec.yaml is detected at repo root."
+    value: ${{ steps.run.outputs.is_flutter }}
+  release_version:
+    description: "Full version string inferred from the branch (e.g. v1.2.3)."
+    value: ${{ steps.run.outputs.release_version }}
+  release_version_number:
+    description: "Numeric part of the version string (e.g. 1.2.3)."
+    value: ${{ steps.run.outputs.release_version_number }}
+  build_number:
+    description: "Flutter build number extracted from the branch version string."
+    value: ${{ steps.run.outputs.build_number }}
   active_branch:
-    description: "The active branch name relevant to the event (e.g. PR source branch, push branch)."
-    value: ${{ steps.resolve.outputs.active_branch }}
+    description: "Active branch name relevant to the triggering event."
+    value: ${{ steps.run.outputs.active_branch }}
+
 runs:
   using: composite
   steps:
-    - name: Resolve CI/CD Context
-      id: resolve
-      shell: bash
-      env:
-        INPUT_TARGET_ACTION: ${{ inputs.target_action }}
-        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
-        GH_TOKEN: ${{ inputs.github_token }}
-      run: |
-        set -euo pipefail
-        GREEN='\033[0;32m'
-        NC='\033[0m' # No Color
-
-        echo -ne "🚀 ${GREEN}[INFO]: RESOLVIENDO CONTEXTO${NC}\n"
-
-        SCRIPTS_PATH=".ci-toolkit/.github/scripts"
-        export SCRIPTS_PATH
-        echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
-
-        EXECUTE_SCRIPT="${SCRIPTS_PATH}/shell/resolve-ci-context/resolve-ci-context.sh"
-        chmod +x ${EXECUTE_SCRIPT}
-        ${EXECUTE_SCRIPT}
+    - id: run
+      uses: ./.ci-toolkit/.github/actions/run-script
+      with:
+        script: resolve-ci-context/resolve-ci-context.sh
+        env_vars: |
+          INPUT_TARGET_ACTION=${{ inputs.target_action }}
+          INPUT_GITHUB_TOKEN=${{ inputs.github_token }}
+          GH_TOKEN=${{ inputs.github_token }}

@@ -1,58 +1,51 @@
 name: container build-and-push process
-description: "Builds, scans, and pushes a container image to GHCR"
+description: "Builds, scans, and pushes a container image to GHCR."
 author: "DevOps Team"
 
 inputs:
   github_token:
-    description: "GitHub token for authentication"
-    required: true
+    description: "GitHub token for GHCR authentication."
+    required: false
+    default: ""
   trivy_severity:
-    description: "Trivy severity threshold"
+    description: "Trivy severity threshold."
     required: false
     default: "CRITICAL,HIGH"
   trivy_ignore_unfixed:
-    description: "Ignore unfixed vulnerabilities"
+    description: "Ignore unfixed vulnerabilities."
     required: false
     default: "true"
   trivy_exit_code:
-    description: "Exit code when vulnerabilities found"
+    description: "Exit code when vulnerabilities are found."
     required: false
     default: "1"
   project_language:
-    description: "Main programming language of the project, used for Trivy scan reporting"
+    description: "Main programming language of the project, used for Trivy scan reporting."
     required: false
     default: "N/A"
   security_allow_push_to_ghcr:
-    description: "Flag to allow pushing the container image to GHCR, used for security control"
+    description: "When true, skips the Trivy gate and pushes regardless of scan result."
     required: false
     default: "false"
   is_single_branch_deployment:
-    description: "Flag to indicate if the deployment is for a single branch, used for naming conventions"
+    description: "When true, omits the branch name from the image tag."
     required: false
     default: "false"
 
 outputs:
   container_image_name_ghcr:
-    description: "Name of the container image in GHCR"
+    description: "Full GHCR image reference with short SHA tag."
     value: ${{ steps.build.outputs.container_image_name_ghcr }}
   container_image_digest_ghcr:
-    description: "Digest of the container image in GHCR"
+    description: "Immutable digest of the pushed container image."
     value: ${{ steps.push.outputs.container_image_digest_ghcr }}
   client_repo_sha:
-    description: "Commit SHA that triggered the build"
+    description: "Commit SHA of the client repo that triggered the build."
     value: ${{ steps.build.outputs.client_repo_sha }}
 
 runs:
   using: "composite"
   steps:
-    - name: Set shared paths
-      shell: bash
-      run: |
-        SCRIPTS_PATH=".ci-toolkit/.github/scripts"
-        SCRIPT="${SCRIPTS_PATH}/shell/container/build-and-push.sh"
-        chmod +x "${SCRIPT}"
-        echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
-        echo "BUILD_PUSH_SCRIPT=${SCRIPT}" >> $GITHUB_ENV
 
     # ── Dependencies ──────────────────────────────────────────
 
@@ -67,47 +60,48 @@ runs:
         password: ${{ inputs.github_token }}
 
     - name: "Install Trivy"
-      shell: bash
-      run: |
-        set -euo pipefail
-        SCRIPT="${SCRIPTS_PATH}/shell/tools/trivy.sh"
-        chmod +x "${SCRIPT}"
-        "${SCRIPT}"
+      uses: ./.ci-toolkit/.github/actions/run-script
+      with:
+        script: tools/trivy.sh
+
+    # ── Build ─────────────────────────────────────────────────
 
     - name: "Build Container Image"
       id: build
-      shell: bash
-      env:
-        INPUT_IS_SINGLE_BRANCH_DEPLOYMENT: ${{ inputs.is_single_branch_deployment }}
-      run: |
-        set -euo pipefail
-        "${BUILD_PUSH_SCRIPT}" build
+      uses: ./.ci-toolkit/.github/actions/run-script
+      with:
+        script: container/build-and-push.sh
+        args: build
+        env_vars: |
+          INPUT_IS_SINGLE_BRANCH_DEPLOYMENT=${{ inputs.is_single_branch_deployment }}
 
     # ── Scan (continue-on-error: exports result before failing) ──
+
     - name: "Trivy Security Scan"
       id: scan
       continue-on-error: true
-      shell: bash
-      env:
-        INPUT_IMAGE_NAME: ${{ steps.build.outputs.container_image_name_ghcr }}
-        INPUT_TRIVY_SEVERITY: ${{ inputs.trivy_severity }}
-        INPUT_TRIVY_IGNORE_UNFIXED: ${{ inputs.trivy_ignore_unfixed }}
-        INPUT_TRIVY_EXIT_CODE: ${{ inputs.trivy_exit_code }}
-        INPUT_SECURITY_ALLOW_PUSH_TO_GHCR: ${{ inputs.security_allow_push_to_ghcr }}
-      run: |
-        set -euo pipefail
-        "${BUILD_PUSH_SCRIPT}" scan
+      uses: ./.ci-toolkit/.github/actions/run-script
+      with:
+        script: container/build-and-push.sh
+        args: scan
+        env_vars: |
+          INPUT_IMAGE_NAME=${{ steps.build.outputs.container_image_name_ghcr }}
+          INPUT_TRIVY_SEVERITY=${{ inputs.trivy_severity }}
+          INPUT_TRIVY_IGNORE_UNFIXED=${{ inputs.trivy_ignore_unfixed }}
+          INPUT_TRIVY_EXIT_CODE=${{ inputs.trivy_exit_code }}
+          INPUT_SECURITY_ALLOW_PUSH_TO_GHCR=${{ inputs.security_allow_push_to_ghcr }}
 
     # ── Push (only when scan passed or skipped) ───────────────
+
     - name: "Push Container Image"
       id: push
       if: >-
         steps.scan.outputs.trivy_scan_result == 'passed' || steps.scan.outputs.trivy_scan_result == 'skipped' ||
         (inputs.security_allow_push_to_ghcr == 'true')
-      shell: bash
-      env:
-        INPUT_IMAGE_NAME: ${{ steps.build.outputs.container_image_name_ghcr }}
-        INPUT_IS_SINGLE_BRANCH_DEPLOYMENT: ${{ inputs.is_single_branch_deployment }}
-      run: |
-        set -euo pipefail
-        "${BUILD_PUSH_SCRIPT}" push
+      uses: ./.ci-toolkit/.github/actions/run-script
+      with:
+        script: container/build-and-push.sh
+        args: push
+        env_vars: |
+          INPUT_IMAGE_NAME=${{ steps.build.outputs.container_image_name_ghcr }}
+          INPUT_IS_SINGLE_BRANCH_DEPLOYMENT=${{ inputs.is_single_branch_deployment }}

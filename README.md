@@ -21,6 +21,7 @@ This repo is the shared toolkit used by downstream repositories through `workflo
     container-pr-verifications.yml     ← pre-merge tag/release existence check
     container-create-tag-and-release.yml ← post-merge tag and release creation
   actions/
+    run-script/                        ← generic runner used by all domain actions
     resolve-ci-context/
     build-and-push-container-image/
     gitops-merge-validator/

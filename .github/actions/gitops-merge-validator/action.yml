@@ -1,31 +1,28 @@
 ---
-name: "GitOps Merge Validator"
-description: "Valida que el PR que se intenta mergear a main tenga el label deploy-to-prod, para evitar merges accidentales a main sin pasar por release branches"
+name: GitOps Merge Validator
+description: >
+  Validates that the source branch is up-to-date with its base and has no
+  merge conflicts before a PR is merged or a dispatch is triggered.
+  Exits non-zero when the branch is stale or a conflict is detected.
+author: "DevOps Team"
+
 inputs:
   github_token:
-    description: "GitHub token for authentication"
-    required: true
+    description: "GitHub token for authenticated gh CLI calls."
+    required: false
+    default: ""
+
 outputs:
   branch_freshness_check:
-    value: ${{ steps.merge-validator.outputs.branch_freshness_check }}
-    description: "Resultado de la validación de frescura de la rama (true/false)"
-runs:
-  using: "composite"
-  steps:
-    - name: Set shared paths
-      shell: bash
-      run: |
-        SCRIPTS_PATH=".ci-toolkit/.github/scripts"
-        SCRIPT="${SCRIPTS_PATH}/shell/gitops/merge-validator/merge-validator.sh"
-        chmod +x "${SCRIPT}"
-        echo "SCRIPTS_PATH=${SCRIPTS_PATH}" >> $GITHUB_ENV
-        echo "MERGE_VALIDATOR_SCRIPT=${SCRIPT}" >> $GITHUB_ENV
+    description: "Result of the freshness check: passed / skipped."
+    value: ${{ steps.run.outputs.branch_freshness_check }}
 
-    - name: Validate PR Merge to Main
-      id: merge-validator
-      shell: bash
-      env:
-        GITHUB_TOKEN: ${{ inputs.github_token }}
-      run: |
-        set -euo pipefail
-        "${MERGE_VALIDATOR_SCRIPT}"
+runs:
+  using: composite
+  steps:
+    - id: run
+      uses: ./.ci-toolkit/.github/actions/run-script
+      with:
+        script: gitops/merge-validator/merge-validator.sh
+        env_vars: |
+          GITHUB_TOKEN=${{ inputs.github_token }}
