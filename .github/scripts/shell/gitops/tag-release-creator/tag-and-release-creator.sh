@@ -19,18 +19,18 @@ source "${SCRIPTS_DIR}/_lib_release.sh"
 
 # ── Logging ───────────────────────────────────────────────────
 
-log_info()  { echo "ℹ️  $*" >&2; }
-log_ok()    { echo "✅ $*" >&2; }
-log_warn()  { echo "⚠️  $*" >&2; }
+log_info() { echo "ℹ️  $*" >&2; }
+log_ok() { echo "✅ $*" >&2; }
+log_warn() { echo "⚠️  $*" >&2; }
 log_error() { echo "❌ $*" >&2; }
 
 # ── Environment guard ────────────────────────────────────────
 
 _require_env() {
-  local name="$1"
-  [[ -n "${!name:-}" ]] && return 0
-  log_error "Required variable '${name}' is not set."
-  exit 1
+	local name="$1"
+	[[ -n "${!name:-}" ]] && return 0
+	log_error "Required variable '${name}' is not set."
+	exit 1
 }
 
 # ── Entry point ──────────────────────────────────────────────
@@ -45,25 +45,24 @@ _require_env() {
 #                  or GitHub API call failure.
 # ------------------------------------------------------------
 main() {
-  _require_env "INPUT_RELEASE_VERSION"
-  _require_env "GITHUB_REPOSITORY"
-  _require_env "GITHUB_SHA"
-  _require_env "INPUT_ENVIRONMENT"
-  _require_env "GITHUB_OUTPUT"
+	_require_env "INPUT_RELEASE_VERSION"
+	_require_env "GITHUB_REPOSITORY"
+	_require_env "GITHUB_SHA"
+	_require_env "INPUT_ENVIRONMENT"
+	_require_env "GITHUB_OUTPUT"
 
-  declare -A TRC_CTX
-  ctx_build TRC_CTX \
-    "${INPUT_RELEASE_VERSION}" \
-    "${GITHUB_REPOSITORY}" \
-    "${GITHUB_SHA}" \
-    "${INPUT_ENVIRONMENT}" \
-    "${GITHUB_OUTPUT}"
+	declare -A TRC_CTX
+	ctx_build TRC_CTX \
+		"${INPUT_RELEASE_VERSION}" \
+		"${GITHUB_REPOSITORY}" \
+		"${GITHUB_SHA}" \
+		"${INPUT_ENVIRONMENT}" \
+		"${GITHUB_OUTPUT}"
 
-  tag_resolve_previous "TRC_CTX"
-  release_create       "TRC_CTX"
-
-  output_export  "TRC_CTX"
-  output_summary "TRC_CTX"
+	tag_resolve_previous "TRC_CTX"
+	release_create "TRC_CTX"
+	output_export "TRC_CTX"
+	output_summary "TRC_CTX"
 }
 
 main "$@"

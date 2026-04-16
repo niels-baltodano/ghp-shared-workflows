@@ -15,10 +15,11 @@ This repo is the shared toolkit used by downstream repositories through `workflo
 ```text
 .github/
   workflows/
-    ci-cd.yml
-    container-build-push.yml
-    container-pr-verifications.yml
-    container-create-tag-and-release.yml
+    ci-cd.yml                          ← dispatcher: calls all sub-workflows
+    resolve-ci-context.yml             ← context resolution + branch freshness gate
+    container-build-push.yml           ← build, scan, push to GHCR
+    container-pr-verifications.yml     ← pre-merge tag/release existence check
+    container-create-tag-and-release.yml ← post-merge tag and release creation
   actions/
     resolve-ci-context/
     build-and-push-container-image/
@@ -33,6 +34,8 @@ This repo is the shared toolkit used by downstream repositories through `workflo
         merge-validator/
         tag-release-creator/
         tag-release-validator/
+      tools/
+        trivy.sh                       ← safe Trivy installer (OSV.dev advisory check)
 docs/
   workflows.md
   actions.md
@@ -42,13 +45,15 @@ docs/
 
 ### CI/CD dispatcher
 
-`ci-cd.yml` is the entrypoint. It resolves CI context and dispatches to the appropriate sub-workflow based on event type:
+`ci-cd.yml` is the entry point. It is a pure dispatcher — every job is a `uses:` call to a reusable workflow. It resolves CI context and routes to the appropriate sub-workflow based on event type:
 
 | Event | Dispatches to |
 |---|---|
 | `workflow_dispatch` from release branch | `container-build-push.yml` |
 | `pull_request` → main | `container-pr-verifications.yml` |
 | `push` to main | `container-create-tag-and-release.yml` |
+
+Context resolution and branch freshness validation are handled by `resolve-ci-context.yml`, which runs unconditionally before the dispatch jobs.
 
 ### Container build and push
 
@@ -102,13 +107,7 @@ jobs:
 - Container publishing is GHCR-based
 - Trivy scanning is part of the container flow; push is blocked unless scan passes or `security_allow_push_to_ghcr=true`
 - Project type is auto-detected: `Dockerfile` → container, `pubspec.yaml` → Flutter
-
-## Known caveats
-
-These are current implementation mismatches worth fixing later:
-
-- `container-build-push.yml` declares `is_single_branch_deployment`, but it is not forwarded to the action
-- `ci-cd.yml` exposes `client_repo_sha` as a workflow output, but the `resolve-ci-context` job does not surface it as a job output, so it always resolves empty
+- Permissions (`contents: write`, `packages: write`, `pull-requests: read`) are declared in the caller workflow and inherited by all reusable workflows via `secrets: inherit`
 
 ## If you are extending this repo
 

@@ -28,18 +28,18 @@ source "${SCRIPTS_DIR}/_lib_scan_push.sh"
 
 # ── Logging ───────────────────────────────────────────────────
 
-log_info()  { echo "ℹ️  $*" >&2; }
-log_ok()    { echo "✅ $*" >&2; }
-log_warn()  { echo "⚠️  $*" >&2; }
+log_info() { echo "ℹ️  $*" >&2; }
+log_ok() { echo "✅ $*" >&2; }
+log_warn() { echo "⚠️  $*" >&2; }
 log_error() { echo "❌ $*" >&2; }
 
 # ── Environment guard ────────────────────────────────────────
 
 _require_env() {
-  local name="$1"
-  [[ -n "${!name:-}" ]] && return 0
-  log_error "Required variable '${name}' is not set."
-  exit 1
+	local name="$1"
+	[[ -n "${!name:-}" ]] && return 0
+	log_error "Required variable '${name}' is not set."
+	exit 1
 }
 
 # ── Entry point ──────────────────────────────────────────────
@@ -86,43 +86,43 @@ _require_env() {
 #   INPUT_TRIVY_SEVERITY, INPUT_TRIVY_EXIT_CODE, INPUT_TRIVY_IGNORE_UNFIXED,
 #   GITHUB_ACTOR, GITHUB_RUN_ID, INPUT_IMAGE_NAME
 main() {
-  _require_env "GITHUB_REPOSITORY"
-  _require_env "GITHUB_SHA"
-  _require_env "GITHUB_REF_NAME"
-  _require_env "GITHUB_WORKSPACE"
-  _require_env "GITHUB_OUTPUT"
+	_require_env "GITHUB_REPOSITORY"
+	_require_env "GITHUB_SHA"
+	_require_env "GITHUB_REF_NAME"
+	_require_env "GITHUB_WORKSPACE"
+	_require_env "GITHUB_OUTPUT"
 
-  declare -A BP_CTX
-  ctx_build BP_CTX \
-    "${INPUT_SECURITY_ALLOW_PUSH_TO_GHCR:-}" \
-    "${INPUT_IS_SINGLE_BRANCH_DEPLOYMENT:-}" \
-    "${INPUT_TRIVY_SEVERITY:-}" \
-    "${INPUT_TRIVY_EXIT_CODE:-}" \
-    "${INPUT_TRIVY_IGNORE_UNFIXED:-}" \
-    "${GITHUB_REF_NAME}" \
-    "${GITHUB_REPOSITORY}" \
-    "${GITHUB_SHA}" \
-    "${GITHUB_WORKSPACE}" \
-    "${GITHUB_ACTOR:-}" \
-    "${GITHUB_RUN_ID:-}" \
-    "${GITHUB_OUTPUT}" \
-    "${INPUT_IMAGE_NAME:-}"
+	declare -A BP_CTX
+	ctx_build BP_CTX \
+		"${INPUT_SECURITY_ALLOW_PUSH_TO_GHCR:-}" \
+		"${INPUT_IS_SINGLE_BRANCH_DEPLOYMENT:-}" \
+		"${INPUT_TRIVY_SEVERITY:-}" \
+		"${INPUT_TRIVY_EXIT_CODE:-}" \
+		"${INPUT_TRIVY_IGNORE_UNFIXED:-}" \
+		"${GITHUB_REF_NAME}" \
+		"${GITHUB_REPOSITORY}" \
+		"${GITHUB_SHA}" \
+		"${GITHUB_WORKSPACE}" \
+		"${GITHUB_ACTOR:-}" \
+		"${GITHUB_RUN_ID:-}" \
+		"${GITHUB_OUTPUT}" \
+		"${INPUT_IMAGE_NAME:-}"
 
-  declare -A _CMD_REGISTRY=(
-    ["build"]="cmd_build"
-    ["scan"]="cmd_scan"
-    ["push"]="cmd_push"
-  )
+	declare -A _CMD_REGISTRY=(
+		["build"]="cmd_build"
+		["scan"]="cmd_scan"
+		["push"]="cmd_push"
+	)
 
-  local command="${1:-}"
-  local handler="${_CMD_REGISTRY[${command}]:-}"
+	local command="${1:-}"
+	local handler="${_CMD_REGISTRY[${command}]:-}"
 
-  if [[ -z "${handler}" ]]; then
-    log_error "Usage: $(basename "$0") {build|scan|push}"
-    exit 1
-  fi
+	if [[ -z "${handler}" ]]; then
+		log_error "Usage: $(basename "$0") {build|scan|push}"
+		exit 1
+	fi
 
-  "${handler}" "BP_CTX"
+	"${handler}" "BP_CTX"
 }
 
 main "$@"

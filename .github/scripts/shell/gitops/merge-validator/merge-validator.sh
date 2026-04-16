@@ -19,18 +19,18 @@ source "${SCRIPTS_DIR}/_lib_policy.sh"
 
 # ── Logging ───────────────────────────────────────────────────
 
-log_info()  { echo "ℹ️  $*" >&2; }
-log_ok()    { echo "✅ $*" >&2; }
-log_warn()  { echo "⚠️  $*" >&2; }
+log_info() { echo "ℹ️  $*" >&2; }
+log_ok() { echo "✅ $*" >&2; }
+log_warn() { echo "⚠️  $*" >&2; }
 log_error() { echo "❌ $*" >&2; }
 
 # ── Environment guard ────────────────────────────────────────
 
 _require_env() {
-  local name="$1"
-  [[ -n "${!name:-}" ]] && return 0
-  log_error "Required variable '${name}' is not set."
-  exit 1
+	local name="$1"
+	[[ -n "${!name:-}" ]] && return 0
+	log_error "Required variable '${name}' is not set."
+	exit 1
 }
 
 # ── Entry point ──────────────────────────────────────────────
@@ -45,23 +45,23 @@ _require_env() {
 # @exitcode     1  Required env var missing, stale branch, or merge conflicts.
 # ------------------------------------------------------------
 main() {
-  _require_env "GITHUB_EVENT_NAME"
-  _require_env "GITHUB_REF_NAME"
-  _require_env "GITHUB_OUTPUT"
+	_require_env "GITHUB_EVENT_NAME"
+	_require_env "GITHUB_REF_NAME"
+	_require_env "GITHUB_OUTPUT"
 
-  declare -A MV_CTX
-  ctx_build MV_CTX \
-    "${GITHUB_EVENT_NAME}" \
-    "${GITHUB_HEAD_REF:-}" \
-    "${GITHUB_BASE_REF:-}" \
-    "${GITHUB_REF_NAME}" \
-    "${INPUT_FETCH_DEPTH:-}" \
-    "${INPUT_MAX_BEHIND:-}"
+	declare -A MV_CTX
+	ctx_build MV_CTX \
+		"${GITHUB_EVENT_NAME}" \
+		"${GITHUB_HEAD_REF:-}" \
+		"${GITHUB_BASE_REF:-}" \
+		"${GITHUB_REF_NAME}" \
+		"${INPUT_FETCH_DEPTH:-}" \
+		"${INPUT_MAX_BEHIND:-}"
 
-  policy_evaluate "MV_CTX"
+	policy_evaluate "MV_CTX"
 
-  output_export  "MV_CTX" "${GITHUB_OUTPUT}"
-  output_summary "MV_CTX"
+	output_export "MV_CTX" "${GITHUB_OUTPUT}"
+	output_summary "MV_CTX"
 }
 
 main "$@"
