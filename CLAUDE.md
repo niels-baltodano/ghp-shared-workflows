@@ -56,8 +56,7 @@ Project type is auto-detected by file presence: `Dockerfile` → container, `pub
 
 ## Known mismatches (do not silently paper over)
 
-- `is_single_branch_deployment` declared in `container-build-push.yml` but not forwarded to `build-and-push-container-image` action
-- `ci-cd.yml` exposes `client_repo_sha` as a workflow output but `resolve-ci-context` job does not define it as a job output — always resolves empty
+None currently known.
 
 ## Extension rule
 

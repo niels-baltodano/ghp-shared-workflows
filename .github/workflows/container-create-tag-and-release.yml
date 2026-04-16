@@ -9,6 +9,14 @@ on:
         type: string
         required: true
 jobs:
+  # ------------------------------------------------------------
+  # @description  Post-merge step that runs when a release branch is
+  #               merged into main. Creates an annotated Git tag at the
+  #               merge commit and publishes a GitHub release with a
+  #               changelog of commits since the previous tag.
+  #               Runs only on push-to-main so the tag always points
+  #               to the exact merge commit, never to a release branch tip.
+  # ------------------------------------------------------------
   create-tag-and-release:
     runs-on: ubuntu-slim
     steps:

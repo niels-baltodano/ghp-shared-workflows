@@ -49,7 +49,7 @@ Composite action that builds, scans, and pushes the container image.
 
 1. Set up Docker Buildx.
 2. Log in to GHCR.
-3. Install Trivy (resolves latest safe version via OSV.dev, falls back to pinned safe version).
+3. Install Trivy via `scripts/shell/tools/trivy.sh` (resolves latest safe version via OSV.dev advisory check, falls back to pinned safe version).
 4. Build the image (`build-and-push.sh build`).
 5. Scan the image (`build-and-push.sh scan`). Runs with `continue-on-error: true`.
 6. Push the image when `trivy_scan_result == 'passed'` or `== 'skipped'`, or `security_allow_push_to_ghcr == 'true'`.
@@ -59,10 +59,6 @@ Composite action that builds, scans, and pushes the container image.
 - `container_image_name_ghcr` — image name with short SHA tag
 - `container_image_digest_ghcr` — full digest after push
 - `client_repo_sha` — commit SHA that triggered the build
-
-**Known mismatch**
-
-- `is_single_branch_deployment` is an action input but `container-build-push.yml` does not forward it to this action.
 
 ---
 
@@ -134,6 +130,16 @@ Composite action that creates a git tag and a GitHub release for the given versi
 ---
 
 ## Shell scripts
+
+### `tools/trivy.sh`
+
+Idempotent Trivy installer with a safety-first version selection strategy.
+
+- Skips installation if Trivy is already in PATH.
+- Queries the GitHub Releases API for the latest version.
+- Checks each candidate against the OSV.dev advisory database; skips versions with known vulnerabilities.
+- Falls back to `TRIVY_FALLBACK_VERSION` (`v0.69.3`) when the API is unreachable or no safe release is found within `TRIVY_MAX_LOOKBACK` (5) releases.
+- Downloads the tarball, verifies its SHA-256 checksum against the official checksums file, then installs to `/usr/local/bin`.
 
 ### `resolve-ci-context.sh`
 

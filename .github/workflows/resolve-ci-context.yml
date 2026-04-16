@@ -1,0 +1,112 @@
+---
+name: Resolve CI/CD Context
+
+on:
+  workflow_call:
+    inputs:
+      target_action:
+        description: "High-level pipeline intent. Valid values: container | flutter"
+        required: true
+        type: string
+    outputs:
+      should_run:
+        description: "Whether the pipeline should proceed based on the resolved context"
+        value: ${{ jobs.resolve.outputs.should_run }}
+      is_pr:
+        description: "True when the triggering event is a pull request"
+        value: ${{ jobs.resolve.outputs.is_pr }}
+      is_push:
+        description: "True when the triggering event is a push to main"
+        value: ${{ jobs.resolve.outputs.is_push }}
+      is_dispatch:
+        description: "True when the triggering event is a workflow_dispatch"
+        value: ${{ jobs.resolve.outputs.is_dispatch }}
+      is_container:
+        description: "True when the resolved target action is container"
+        value: ${{ jobs.resolve.outputs.is_container }}
+      is_hotfix:
+        description: "True when the active branch is a hotfix branch"
+        value: ${{ jobs.resolve.outputs.is_hotfix }}
+      release_version:
+        description: "Inferred version string based on context (e.g. v1.2.3)"
+        value: ${{ jobs.resolve.outputs.release_version }}
+      release_version_number:
+        description: "Numeric part of the version string (e.g. 1.2.3)"
+        value: ${{ jobs.resolve.outputs.release_version_number }}
+      branch_freshness_check:
+        description: "Result of the merge-validator branch freshness check"
+        value: ${{ jobs.resolve.outputs.branch_freshness_check }}
+
+jobs:
+  # ------------------------------------------------------------
+  # @description  Inspects the GitHub event, validates the branch format,
+  #               detects the project type (container / flutter), and
+  #               resolves the release version from the branch name.
+  #               Outputs a set of boolean flags consumed by every
+  #               downstream job in ci-cd.yml to decide whether to run.
+  # @output       should_run          - False when the event/branch combo
+  #                                     does not meet pipeline entry criteria
+  #                                     (e.g. push from a non-release branch).
+  # @output       is_pr               - True for pull_request events.
+  # @output       is_push             - True for push events targeting main.
+  # @output       is_dispatch         - True for workflow_dispatch events.
+  # @output       is_container        - True when a Dockerfile is found at repo root.
+  # @output       is_hotfix           - True when the branch prefix is hotfix/.
+  # @output       release_version     - Full version string (e.g. v1.2.3).
+  # @output       release_version_number - Numeric part only (e.g. 1.2.3).
+  # @output       branch_freshness_check - Skipped on push; passed/failed on pr/dispatch.
+  # ------------------------------------------------------------
+  resolve:
+    name: "ValidateContext(Event: ${{ github.event_name }})"
+    runs-on: ubuntu-slim
+    outputs:
+      should_run: ${{ steps.ctx.outputs.should_run }}
+      is_pr: ${{ steps.ctx.outputs.is_pr }}
+      is_push: ${{ steps.ctx.outputs.is_push }}
+      is_dispatch: ${{ steps.ctx.outputs.is_dispatch }}
+      is_container: ${{ steps.ctx.outputs.is_container }}
+      is_hotfix: ${{ steps.ctx.outputs.is_hotfix }}
+      release_version: ${{ steps.ctx.outputs.release_version }}
+      release_version_number: ${{ steps.ctx.outputs.release_version_number }}
+      branch_freshness_check: ${{ steps.merge-validator.outputs.branch_freshness_check }}
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: "Checkout monorepo(workflows and actions)"
+        uses: actions/checkout@v5
+        with:
+          repository: niels-baltodano/ghp-shared-workflows
+          ref: main
+          path: .ci-toolkit
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: "Resolve CI/CD context"
+        id: ctx
+        uses: ./.ci-toolkit/.github/actions/resolve-ci-context
+        with:
+          target_action: ${{ inputs.target_action }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # @description  Verifies the source branch is up-to-date with its base
+      #               and has no merge conflicts before allowing promotion.
+      # @if           should_run  - Skip entirely when the pipeline gate failed;
+      #                             avoids noise on branches that will not proceed.
+      #               is_pr       - Check freshness on PRs so stale branches are
+      #                             caught during code review.
+      #               is_dispatch - Check freshness on manual dispatch because the
+      #                             operator may be deploying from a long-lived branch.
+      #               Push is excluded: by the time code reaches main it has already
+      #               passed the PR freshness check.
+      - name: "Git Merge Validator"
+        id: merge-validator
+        if: >-
+          steps.ctx.outputs.should_run == 'true' &&
+          (steps.ctx.outputs.is_pr == 'true' || steps.ctx.outputs.is_dispatch == 'true')
+        uses: ./.ci-toolkit/.github/actions/gitops-merge-validator
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
